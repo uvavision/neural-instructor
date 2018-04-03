@@ -45,8 +45,12 @@ class Shape2D(torch.utils.data.Dataset):
         self.vocab_size = len(self.vocab)
         self.max_seq_length = max_seq_length
         self.word_to_ix = {self.vocab[i]: i+1 for i in range(len(self.vocab))}
+        self.ix_to_word = {v: k for k, v in self.word_to_ix.items()}
+        self.ix_to_word[0] = 'END'
         self.color2num = {'red': 0, 'green': 1, 'blue': 2}
         self.shape2num = {'square': 0, 'circle': 1, 'triangle': 2}
+        self.num2color = {v: k for k, v in self.color2num.items()}
+        self.num2shape = {v: k for k, v in self.shape2num.items()}
 
     def __getitem__(self, index):
         raw_data = self.data[index]
