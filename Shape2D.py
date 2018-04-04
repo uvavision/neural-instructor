@@ -13,6 +13,7 @@ import numpy as np
 from pprint import pprint
 from pymongo import MongoClient
 from os import sys, path
+from tqdm import tqdm
 
 
 # %%
@@ -41,7 +42,7 @@ class Shape2D(torch.utils.data.Dataset):
             words = d['current_instruction'].split()
             vocab = vocab.union(set(words))
             max_seq_length = max(max_seq_length, len(words))
-        self.vocab = list(vocab)
+        self.vocab = sorted(list(vocab))
         self.vocab_size = len(self.vocab)
         self.max_seq_length = max_seq_length
         self.word_to_ix = {self.vocab[i]: i+1 for i in range(len(self.vocab))}
@@ -58,7 +59,13 @@ class Shape2D(torch.utils.data.Dataset):
         inst_data = self.encode_inst(raw_data['current_instruction'])
         next_obj_data = self.encode_obj(raw_data['next_object']).astype(np.int64)
         final_canvas_data = self.encode_canvas(raw_data['final_canvas'])
-        return prev_canvas_data, inst_data, next_obj_data, final_canvas_data
+        # ref_obj = np.array((0, 0, 0, 0), dtype=np.int64)
+        # assert 'ref_obj' in raw_data
+        # if 'ref_obj' in raw_data:
+        ref_obj = self.encode_obj(raw_data['ref_obj']).astype(np.int64)
+        a = prev_canvas_data[ref_obj[-2]*5+ref_obj[-1]].astype(np.int64)
+        assert  np.array_equal(a, ref_obj)
+        return prev_canvas_data, inst_data, next_obj_data, final_canvas_data, ref_obj
 
     def get_raw_item(self, index):
         return self.data[index]
@@ -72,13 +79,14 @@ class Shape2D(torch.utils.data.Dataset):
     def encode_obj(self, obj):
         return np.array((self.color2num[obj['color']],
                          self.shape2num[obj['shape']],
-                         obj['row'] * 5 + obj['col']), dtype=np.int32)
+                         obj['row'], obj['col']), dtype=np.int32)
 
     def encode_canvas(self, canvas_objs):
-        canvas_data = np.zeros((25, 3), np.float32)
+        canvas_data = np.zeros((25, 4), np.float32)
+        canvas_data.fill(-1)
         for obj in canvas_objs:
             obj_encode = self.encode_obj(obj)
-            canvas_data[obj_encode[-1]] = obj_encode
+            canvas_data[obj_encode[-2]*5+obj_encode[-1]] = obj_encode
         return canvas_data
 
     def __len__(self):
@@ -86,11 +94,12 @@ class Shape2D(torch.utils.data.Dataset):
 
 
 def shape2d_collate(data):
-    prev_canvas_data, inst_data, next_obj_data, final_canvas_data = zip(*data)
+    prev_canvas_data, inst_data, next_obj_data, final_canvas_data, ref_obj_data = zip(*data)
     return torch.from_numpy(np.stack(prev_canvas_data)), \
            torch.from_numpy(np.stack(inst_data)), \
            torch.from_numpy(np.stack(next_obj_data)), \
-           torch.from_numpy(np.stack(final_canvas_data))
+           torch.from_numpy(np.stack(final_canvas_data)), \
+           torch.from_numpy(np.stack(ref_obj_data))
 
 
 def get_shape2d_loader(split, batch_size):
@@ -134,7 +143,7 @@ def render_test():
     task_id = '12557'
     coll_chat.delete_many({'task_id': task_id})
     dataset = Shape2D('sample.json')
-    for index in range(len(dataset)):
+    for index in tqdm(range(len(dataset))):
         data = dataset.get_raw_item(index)
         inst = data['current_instruction']
         coll_chat.insert_one({'msg': inst, 'author': 'human', 'task_id': task_id,
@@ -148,5 +157,6 @@ def render_test():
 
 
 if __name__ == '__main__':
-    dataloader_test()
+    # dataloader_test()
+    render_test()
 

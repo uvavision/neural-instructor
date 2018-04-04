@@ -3,6 +3,7 @@ from collections import Counter
 import os
 import datetime
 import json
+from tqdm import tqdm
 
 # os.environ['domain'] = '2Dshape'
 # from main import coll_chat
@@ -318,9 +319,9 @@ def construct_next_instruction(canvas):
 
 
 if __name__ == '__main__':
-    train_set_size = 10
+    train_set_size = 100000
     train_set = []
-    for ix in range(train_set_size):
+    for ix in tqdm(range(train_set_size)):
         data = []
         canvas = Canvas()
         for i in range(10):
@@ -328,17 +329,24 @@ if __name__ == '__main__':
             prev_canvas = [o.get_info() for o in canvas.objects]
             current_instuction = inst.get_desc()
             next_obj = inst.obj.get_info()
-            data.append({"prev_canvas": prev_canvas,
-                         "current_instruction": current_instuction,
-                         "next_object": next_obj})
             if inst.ref_obj:
-                data[-1]['ref_obj'] = inst.ref_obj.get_info()
+                # if 'of the canvas' in current_instuction:
+                data.append({"prev_canvas": prev_canvas,
+                             "current_instruction": current_instuction,
+                             "next_object": next_obj,
+                             "ref_obj": inst.ref_obj.get_info()})
+            else:
+                pass
+                # data.append({"prev_canvas": prev_canvas,
+                #              "current_instruction": current_instuction,
+                #              "next_object": next_obj})
+
             canvas.exec_instruction(inst)
         for item in data:
             item['final_canvas'] = [o.get_info() for o in canvas.objects]
         train_set.extend(data)
-    # print(json.dumps(train_set))
-    print(json.dumps(train_set, indent=2))
+    print(json.dumps(train_set))
+    # print(json.dumps(train_set, indent=2))
     # print(json.dumps(train_set, indent=2, sort_keys=True))
     # task_id = '12555'
     # coll_chat.delete_many({'task_id': task_id})
