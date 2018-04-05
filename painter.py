@@ -110,8 +110,10 @@ class Shape2DPainterNet(nn.Module):
         ref_obj_e = torch.cat([inst2, prev_canvas], 2) # Bx25x68
         # canvas_embedding = self.canvas_embed(prev_canvas)
         # ref_obj_e = canvas_embedding + inst2
-        ref_obj_e = self.fc_ref_obj(ref_obj_e).squeeze()
-        ref_obj_out = F.log_softmax(ref_obj_e, dim=1)
+        ref_obj_e = self.fc_ref_obj(ref_obj_e).squeeze() # Bx25
+        weight = F.softmax(ref_obj_e, dim=1)
+        ref_obj_predict = torch.bmm(weight.unsqueeze(1), prev_canvas).squeeze(1)
+        # ref_obj_out = F.log_softmax(ref_obj_e, dim=1)
 
         # if self.use_mask:
         #     mask = torch.zeros(canvas_embedding.size())
@@ -168,9 +170,11 @@ class Shape2DPainterNet(nn.Module):
         # col_out = F.log_softmax(self.fc_col(embedding), dim=1)
         # row_out = self.fc_row(embedding)
         # col_out = self.fc_col(embedding)
-        row_offset_out = offset_embedding[:, 0]
-        col_offset_out = offset_embedding[:, 1]
-        return color_out, shape_out, row_offset_out, col_offset_out, ref_obj_out
+        # row_offset_out = offset_embedding[:, 0]
+        # col_offset_out = offset_embedding[:, 1]
+        row_out = ref_obj_predict[:, 2] + offset_embedding[:, 0]
+        col_out = ref_obj_predict[:, 3] + offset_embedding[:, 1]
+        return color_out, shape_out, row_out, col_out
 
 
 class Shape2DObjCriterion(nn.Module):
@@ -180,15 +184,11 @@ class Shape2DObjCriterion(nn.Module):
     def forward(self, model_out, target_obj, ref_obj):
         color_target = target_obj[:, 0]
         shape_target = target_obj[:, 1]
-        ref_obj_target = ref_obj[:, -2] * 5 + ref_obj[:, -1]
-        color_out, shape_out, row_offset_out, col_offset_out, ref_obj_out = model_out
-        row_offset = target_obj[:, 2] - ref_obj[:, 2]
-        col_offset = target_obj[:, 3] - ref_obj[:, 3]
+        color_out, shape_out, row_out, col_out = model_out
         loss = F.nll_loss(color_out, color_target) + \
                F.nll_loss(shape_out, shape_target) + \
-               F.l1_loss(row_offset_out, row_offset.float()) + \
-               F.l1_loss(col_offset_out, col_offset.float()) + \
-               F.nll_loss(ref_obj_out, ref_obj_target)
+               F.l1_loss(row_out, target_obj[:, 2].float()) + \
+               F.l1_loss(col_out, target_obj[:, 3].float())
         return loss
 
 
@@ -209,24 +209,23 @@ def clip_gradient(optimizer, grad_clip):
 def compute_accuracy(model_out, target_obj, ref_obj):
     color_target = target_obj[:, 0]
     shape_target = target_obj[:, 1]
-    color_out, shape_out, row_offset_out, col_offset_out, ref_obj_out = model_out
-    ref_obj_target = ref_obj[:, -2] * 5 + ref_obj[:, -1]
+    color_out, shape_out, row_out, col_out = model_out
+    # ref_obj_target = ref_obj[:, -2] * 5 + ref_obj[:, -1]
     batch_size = target_obj.size(0)
     color_accuracy = torch.eq(torch.max(color_out.data, dim=1)[1], color_target.data).sum()/batch_size
     shape_accuracy = torch.eq(torch.max(shape_out.data, dim=1)[1], shape_target.data).sum()/batch_size
-    ref_obj_accuracy = torch.eq(torch.max(ref_obj_out.data, dim=1)[1], ref_obj_target.data).sum()/batch_size
     # row_accuracy = torch.eq(torch.max(row_out, dim=1)[1], row_target).sum() / batch_size
     # col_accuracy = torch.eq(torch.max(col_out, dim=1)[1], col_target).sum() / batch_size
     # row_accuracy = torch.abs(row_out - row_target).mean()
     # col_accuracy = torch.abs(col_out - col_target).mean()
-    row_offset = target_obj[:, 2] - ref_obj[:, 2]
-    col_offset = target_obj[:, 3] - ref_obj[:, 3]
-    row_accuracy = F.l1_loss(row_offset_out, row_offset.float())
-    col_accuracy = F.l1_loss(col_offset_out, col_offset.float())
+    # row_offset = target_obj[:, 2] - ref_obj[:, 2]
+    # col_offset = target_obj[:, 3] - ref_obj[:, 3]
+    row_accuracy = F.l1_loss(row_out, target_obj[:, 2].float())
+    col_accuracy = F.l1_loss(col_out, target_obj[:, 3].float())
     # TODO
-    row2 = torch.abs(row_offset_out.data - row_offset.data.float()).mean()
-    col2 = torch.abs(col_offset_out.data - col_offset.data.float()).mean()
-    return color_accuracy, shape_accuracy, row_accuracy.data[0], col_accuracy.data[0], ref_obj_accuracy
+    # row2 = torch.abs(row_offset_out.data - row_offset.data.float()).mean()
+    # col2 = torch.abs(col_offset_out.data - col_offset.data.float()).mean()
+    return color_accuracy, shape_accuracy, row_accuracy.data[0], col_accuracy.data[0]
 
 
 train_loader = get_shape2d_loader(split='train', batch_size=args.batch_size)
@@ -267,11 +266,11 @@ def train(epoch):
         loss.backward()
         clip_gradient(optimizer, 0.1)
         optimizer.step()
-        color_accuracy, shape_accuracy, row_accuracy, col_accuray, ref_obj_accuracy = compute_accuracy(output, next_obj, ref_obj)
+        color_accuracy, shape_accuracy, row_accuracy, col_accuray = compute_accuracy(output, next_obj, ref_obj)
         if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} ({:.3f} {:.3f} {} {} {})'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} ({:.3f} {:.3f} {} {})'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), loss.data[0], color_accuracy, shape_accuracy, row_accuracy, col_accuray, ref_obj_accuracy))
+                       100. * batch_idx / len(train_loader), loss.data[0], color_accuracy, shape_accuracy, row_accuracy, col_accuray))
 
 
 def model_test():
