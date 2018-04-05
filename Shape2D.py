@@ -71,9 +71,10 @@ class Shape2D(torch.utils.data.Dataset):
         return self.data[index]
 
     def encode_inst(self, inst_str):
-        inst_data = np.zeros(self.max_seq_length, dtype=np.int64)
+        # [0, a, b, c, 0]
+        inst_data = np.zeros(self.max_seq_length + 2, dtype=np.int64)
         inst_indices = [self.word_to_ix[w] for w in inst_str.split()]
-        inst_data[:len(inst_indices)] = inst_indices
+        inst_data[1:len(inst_indices) + 1] = inst_indices
         return inst_data
 
     def encode_obj(self, obj):
