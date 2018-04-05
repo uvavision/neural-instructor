@@ -86,7 +86,7 @@ class Shape2DPainterNet(nn.Module):
         # self.canvas_embed = nn.Linear(4, 64)
         # self.fc_ref_obj = nn.Linear(64, 1)
         # self.fc_ref_obj = nn.Sequential(nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, 1))
-        self.fc_ref_obj = nn.Sequential(nn.Linear(69, 32), nn.ReLU(), nn.Linear(32, 1))
+        self.fc_ref_obj = nn.Sequential(nn.Linear(68, 32), nn.ReLU(), nn.Linear(32, 1))
         # self.fc_dir = nn.Linear(self.inst_encoder.rnn_size, 8)
         # self.fc_row = nn.Linear(2 + self.canvas_encoder.embed_size, 1, bias=False)
         # self.fc_col = nn.Linear(2 + self.canvas_encoder.embed_size, 1, bias=False)
@@ -96,15 +96,7 @@ class Shape2DPainterNet(nn.Module):
 
     def forward(self, inst, prev_canvas, ref_obj, target_obj):
         inst_embedding = self.inst_encoder(inst) # Bx64
-        act_tag = torch.zeros(inst_embedding.size(0))
-        inst_data = inst.data
-        for i in range(act_tag.size(0)):
-            inst_data = inst[i].data
-            if inst_data[inst_data>=1][-1] == 9:
-                act_tag[i] = 1
-        act_tag = Variable(act_tag.cuda())
-        inst2 = torch.cat([inst_embedding, act_tag.unsqueeze(1)], 1)
-        inst2 = torch.unsqueeze(inst2, 1)  # Bx1x64
+        inst2 = torch.unsqueeze(inst_embedding, 1)  # Bx1x64
         inst2 = inst2.repeat(1, 25, 1) # Bx25x64
         # canvas_embedding = self.canvas_encoder(prev_canvas) # Bx25x16
         ref_obj_e = torch.cat([inst2, prev_canvas], 2) # Bx25x68
