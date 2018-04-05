@@ -261,6 +261,7 @@ def train(epoch):
         inst = Variable(inst.cuda())
         next_obj = Variable(next_obj.cuda())
         ref_obj = Variable(ref_obj.cuda())
+        optimizer.zero_grad()
         output = model(inst, prev_canvas, ref_obj, next_obj)
         loss = loss_fn(output, next_obj, ref_obj)
         loss.backward()
