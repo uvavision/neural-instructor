@@ -7,6 +7,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 from Shape2D import get_shape2d_loader
 import random
+from utils import clip_gradient, adjust_lr
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
@@ -184,20 +185,6 @@ class Shape2DObjCriterion(nn.Module):
         return loss
 
 
-# https://discuss.pytorch.org/t/adaptive-learning-rate/320/2
-def adjust_lr(optimizer, epoch):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.8 ** (epoch // 2))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-
-
-def clip_gradient(optimizer, grad_clip):
-    for group in optimizer.param_groups:
-        for param in group['params']:
-            param.grad.data.clamp_(-grad_clip, grad_clip)
-
-
 def compute_accuracy(model_out, target_obj, ref_obj):
     color_target = target_obj[:, 0]
     shape_target = target_obj[:, 1]
@@ -234,7 +221,7 @@ optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0)
 
 
 def train(epoch):
-    # adjust_lr(optimizer, epoch)
+    # adjust_lr(optimizer, epoch, args.lr)
     model.train()
     for batch_idx, (prev_canvas, inst, next_obj, final_canvas, ref_obj) in enumerate(train_loader):
         # for ix in range(args.batch_size):

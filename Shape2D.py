@@ -35,7 +35,9 @@ def render_canvas(objects):
 # %%
 class Shape2D(torch.utils.data.Dataset):
     def __init__(self, datafile):
-        self.data = json.load(open(datafile, 'r'))
+        data = json.load(open(datafile, 'r'))
+        # self.data = [d for d in data if 'canvas' in d['current_instruction']]
+        self.data = data
         max_seq_length = 0
         vocab = set()
         for d in self.data:
