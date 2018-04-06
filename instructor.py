@@ -59,6 +59,12 @@ def decode_sequence(ix_to_word, seq):
         out.append(txt)
     return out
 
+def compute_diff_canvas(canvas1, canvas2):
+    mask = (canvas1.sum(dim=2, keepdim=True) > 0).repeat(1, 1, 4)
+    diff_canvas = Variable(canvas2.data.clone())
+    diff_canvas[mask] = -1
+    return diff_canvas
+
 
 # https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/master/misc/utils.py#L39
 class LanguageModelCriterion(nn.Module):
@@ -159,10 +165,8 @@ class InstAtt(nn.Module):
 
     def forward(self, inst, prev_canvas, final_canvas):
         # http://pytorch.org/docs/master/nn.html#torch.nn.LSTMCell
-        mask = (prev_canvas.sum(dim=2, keepdim=True) > 0).repeat(1, 1, 4)
-        canvas_diff = Variable(final_canvas.data.clone())
-        canvas_diff[mask] = -1
-        memory = torch.cat([canvas_diff, prev_canvas], dim=1) # 50x4
+        diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
+        memory = torch.cat([diff_canvas, prev_canvas], dim=1) # 50x4
         batch_size = inst.size(0)
         h = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
         c = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
@@ -191,10 +195,8 @@ class InstAtt(nn.Module):
         sample_max = True
         temperature = 0.8
         seq = []
-        mask = (prev_canvas.sum(dim=2, keepdim=True) > 0).repeat(1, 1, 4)
-        canvas_diff = Variable(final_canvas.data.clone())
-        canvas_diff[mask] = -1
-        memory = torch.cat([canvas_diff, prev_canvas], dim=1) # 50x4
+        diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
+        memory = torch.cat([diff_canvas, prev_canvas], dim=1) # 50x4
         batch_size = prev_canvas.size(0)
         h = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
         c = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
@@ -230,8 +232,8 @@ class InstAtt(nn.Module):
 # sample_loader = get_shape2d_loader(split='sample', batch_size=2)
 # print(len(sample_loader.dataset))
 
-train_loader = get_shape2d_loader(split='train', batch_size=args.batch_size)
-val_loader = get_shape2d_loader(split='val', batch_size=50)
+train_loader = get_shape2d_loader(split='sample', batch_size=args.batch_size)
+val_loader = get_shape2d_loader(split='sample', batch_size=50)
 assert train_loader.dataset.vocab_size == val_loader.dataset.vocab_size
 assert train_loader.dataset.max_seq_length == val_loader.dataset.max_seq_length
 val_loader_iter = iter(val_loader)
@@ -240,7 +242,7 @@ val_loader_iter = iter(val_loader)
 # print(len(sample_loader.dataset))
 
 model = InstAtt(train_loader.dataset.vocab_size, train_loader.dataset.max_seq_length)
-# model.load_state_dict(torch.load('models/19.pth'))
+model.load_state_dict(torch.load('models/19.pth'))
 model.cuda()
 loss_fn = LanguageModelCriterion()
 
@@ -252,15 +254,18 @@ def eval_sample():
     model.eval()
     val_data = next(val_loader_iter)
     val_raw_data = val_data[-1]
-    data = [Variable(_, requires_grad=False).cuda() for _ in val_data[:-1]]
+    data = [Variable(_, volatile=True).cuda() for _ in val_data[:-1]]
     prev_canvas, inst, next_obj, final_canvas, ref_obj = data
+    diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
+    diff_canvas_objs = [train_loader.dataset.decode_canvas(diff_canvas.data[i]) for i in range(diff_canvas.size(0))]
     samples = model.sample(prev_canvas, final_canvas)
     samples = decode_sequence(train_loader.dataset.ix_to_word, samples)
     for i in range(prev_canvas.size(0)):
         val_raw_data[i]['predicted_instruction'] = samples[i]
-    for d in val_raw_data:
+    for i, d in enumerate(val_raw_data):
         d['prev_canvas'] = render_canvas(d['prev_canvas']).replace(' ', '')
         d['final_canvas'] = render_canvas(d['final_canvas']).replace(' ', '')
+        d['diff_canvas'] = render_canvas(diff_canvas_objs[i]).replace(' ', '')
     r = requests.post("http://vision.cs.virginia.edu:5001/new_task", json=val_raw_data)
     model.train()
 
@@ -286,6 +291,7 @@ def train(epoch):
 
 
 if __name__ == '__main__':
-    for epoch in range(1, args.epochs + 1):
-        train(epoch)
+    eval_sample()
+    # for epoch in range(1, args.epochs + 1):
+    #     train(epoch)
 

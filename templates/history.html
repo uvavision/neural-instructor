@@ -35,8 +35,10 @@
 <div class="container">
     <p></p>
     {% for task in data %}
-    {{ task['predicted_instruction'] }}
+    <p>predict: {{ task['predicted_instruction'] }}</p>
+    <p>gt: {{ task['current_instruction'] }}</p>
     <div class="section">
+        <img src="" data={{ task['diff_canvas'] }}>
         <img src="" data={{ task['prev_canvas'] }}>
         <img src="" data={{ task['final_canvas'] }}>
     </div>

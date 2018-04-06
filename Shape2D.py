@@ -84,6 +84,18 @@ class Shape2D(torch.utils.data.Dataset):
                          self.shape2num[obj['shape']],
                          obj['row'], obj['col']), dtype=np.int32)
 
+    def decode_obj_arr(self, obj_arr):
+        color, shape, row, col = obj_arr.long()
+        return {'color': self.num2color[color], 'shape': self.num2shape[shape],
+                'row': row, 'col': col}
+
+    def decode_canvas(self, canvas):
+        objs = []
+        for i in range(25):
+            if canvas[i].sum() > 0:
+                objs.append(self.decode_obj_arr(canvas[i]))
+        return objs
+
     def encode_canvas(self, canvas_objs):
         canvas_data = np.zeros((25, 4), np.float32)
         canvas_data.fill(-1)
