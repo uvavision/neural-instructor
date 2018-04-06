@@ -223,7 +223,7 @@ optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0)
 def train(epoch):
     # adjust_lr(optimizer, epoch, args.lr)
     model.train()
-    for batch_idx, (prev_canvas, inst, next_obj, final_canvas, ref_obj) in enumerate(train_loader):
+    for batch_idx, (prev_canvas, inst, next_obj, final_canvas, ref_obj, raw_data) in enumerate(train_loader):
         # for ix in range(args.batch_size):
         #     # ix = random.randint(0, args.batch_size-1)
         #     inst_str = ' '.join(map(train_loader.dataset.ix_to_word.get, list(inst[ix])))

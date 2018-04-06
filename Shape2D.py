@@ -67,7 +67,7 @@ class Shape2D(torch.utils.data.Dataset):
         ref_obj = self.encode_obj(raw_data['ref_obj']).astype(np.int64)
         a = prev_canvas_data[ref_obj[-2]*5+ref_obj[-1]].astype(np.int64)
         assert  np.array_equal(a, ref_obj)
-        return prev_canvas_data, inst_data, next_obj_data, final_canvas_data, ref_obj
+        return prev_canvas_data, inst_data, next_obj_data, final_canvas_data, ref_obj, raw_data
 
     def get_raw_item(self, index):
         return self.data[index]
@@ -92,17 +92,18 @@ class Shape2D(torch.utils.data.Dataset):
             canvas_data[obj_encode[-2]*5+obj_encode[-1]] = obj_encode
         return canvas_data
 
+
     def __len__(self):
         return len(self.data)
 
 
 def shape2d_collate(data):
-    prev_canvas_data, inst_data, next_obj_data, final_canvas_data, ref_obj_data = zip(*data)
+    prev_canvas_data, inst_data, next_obj_data, final_canvas_data, ref_obj_data, raw_data = zip(*data)
     return torch.from_numpy(np.stack(prev_canvas_data)), \
            torch.from_numpy(np.stack(inst_data)), \
            torch.from_numpy(np.stack(next_obj_data)), \
            torch.from_numpy(np.stack(final_canvas_data)), \
-           torch.from_numpy(np.stack(ref_obj_data))
+           torch.from_numpy(np.stack(ref_obj_data)), raw_data
 
 
 def get_shape2d_loader(split, batch_size):

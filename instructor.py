@@ -5,7 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
-from Shape2D import get_shape2d_loader
+import requests
+from Shape2D import get_shape2d_loader, render_canvas
 from utils import adjust_lr, clip_gradient
 
 
@@ -40,7 +41,26 @@ def to_contiguous(tensor):
     else:
         return tensor.contiguous()
 
+# https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/13516dfd905b0755c28c922e39722ce09ca4f689/misc/utils.py#L17
+# Input: seq, N*D numpy array, with element 0 .. vocab_size. 0 is END token.
+def decode_sequence(ix_to_word, seq):
+    N, D = seq.size()
+    out = []
+    for i in range(N):
+        txt = ''
+        for j in range(D):
+            ix = seq[i,j]
+            if ix > 0 :
+                if j >= 1:
+                    txt = txt + ' '
+                txt = txt + ix_to_word[ix]
+            else:
+                break
+        out.append(txt)
+    return out
 
+
+# https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/master/misc/utils.py#L39
 class LanguageModelCriterion(nn.Module):
     def __init__(self):
         super(LanguageModelCriterion, self).__init__()
@@ -122,33 +142,105 @@ class InstLM(nn.Module):
             logprobs = F.log_softmax(self.fc_out(h), dim=1) # Bx(vocab_size+1)
         return torch.t(torch.stack(seq)).cpu()
 
-# https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/13516dfd905b0755c28c922e39722ce09ca4f689/misc/utils.py#L17
-# Input: seq, N*D numpy array, with element 0 .. vocab_size. 0 is END token.
-def decode_sequence(ix_to_word, seq):
-    N, D = seq.size()
-    out = []
-    for i in range(N):
-        txt = ''
-        for j in range(D):
-            ix = seq[i,j]
-            if ix > 0 :
-                if j >= 1:
-                    txt = txt + ' '
-                txt = txt + ix_to_word[ix]
-            else:
-                break
-        out.append(txt)
-    return out
 
-train_loader = get_shape2d_loader(split='train', batch_size=args.batch_size)
-test_loader = get_shape2d_loader(split='val', batch_size=args.batch_size)
-assert train_loader.dataset.vocab_size == test_loader.dataset.vocab_size
-assert train_loader.dataset.max_seq_length == test_loader.dataset.max_seq_length
+class InstAtt(nn.Module):
+    def __init__(self, vocab_size, max_seq_length):
+        super().__init__()
+        self.vocab_size = vocab_size
+        self.max_seq_length = max_seq_length
+        self.rnn_size = 64
+        self.input_size = 64
+        # https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/master/models/AttModel.py#L43
+        self.embed = nn.Embedding(vocab_size + 1, self.input_size)
+        # https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/master/models/AttModel.py#L372
+        self.lstm_cell = nn.LSTMCell(self.input_size, self.rnn_size)
+        self.fc_out = nn.Linear(self.rnn_size+4, self.vocab_size + 1)
+        self.fc_att = nn.Sequential(nn.Linear(self.rnn_size+4, 32), nn.ReLU(), nn.Linear(32, 1))
+
+    def forward(self, inst, prev_canvas, final_canvas):
+        # http://pytorch.org/docs/master/nn.html#torch.nn.LSTMCell
+        mask = (prev_canvas.sum(dim=2, keepdim=True) > 0).repeat(1, 1, 4)
+        canvas_diff = Variable(final_canvas.data.clone())
+        canvas_diff[mask] = -1
+        memory = torch.cat([canvas_diff, prev_canvas], dim=1) # 50x4
+        batch_size = inst.size(0)
+        h = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
+        c = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
+        outputs = []
+        # inst: [0, a, b, c, 0]
+        for i in range(inst.size(1) - 1):
+            if i >= 1 and inst[:, i].data.sum() == 0:
+                break
+            xt = self.embed(inst[:, i])
+            h, c = self.lstm_cell(xt, (h, c))
+            h2 = torch.unsqueeze(h, 1)  # Bx1x64
+            h2 = h2.repeat(1, 50, 1)  # Bx50x64
+            memory_att = torch.cat([h2, memory], 2) # Bx50x68
+            memory_att = self.fc_att(memory_att).squeeze() # Bx50
+            weight = F.softmax(memory_att, dim=1) # Bx50
+            att = torch.bmm(weight.unsqueeze(1), memory).squeeze(1) # Bx4
+            predict_input = torch.cat([h, att], dim=1) # Bx68
+            output = F.log_softmax(self.fc_out(predict_input), dim=1)  # Bx(vocab_size+1)
+            outputs.append(output)
+        return torch.cat([_.unsqueeze(1) for _ in outputs], 1)  # Bx(seq_len)x(vocab_size+1)
+
+    def sample(self, prev_canvas, final_canvas):
+        assert not self.embed.training
+        assert not self.lstm_cell.training
+        assert not self.fc_out.training
+        sample_max = True
+        temperature = 0.8
+        seq = []
+        mask = (prev_canvas.sum(dim=2, keepdim=True) > 0).repeat(1, 1, 4)
+        canvas_diff = Variable(final_canvas.data.clone())
+        canvas_diff[mask] = -1
+        memory = torch.cat([canvas_diff, prev_canvas], dim=1) # 50x4
+        batch_size = prev_canvas.size(0)
+        h = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
+        c = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
+        for t in range(self.max_seq_length + 1):
+            if t == 0:
+                it = torch.zeros(batch_size).long().cuda()
+            elif sample_max:
+                sampleLogprobs, it = torch.max(logprobs.data, 1)
+                it = it.view(-1).long()
+            else:
+                if temperature == 1.0:
+                    prob_prev = torch.exp(logprobs.data).cpu()  # fetch prev distribution: shape Nx(M+1)
+                else:
+                    # scale logprobs by temperature
+                    prob_prev = torch.exp(torch.div(logprobs.data, temperature)).cpu()
+                    it = torch.multinomial(prob_prev, 1).cuda()
+                    sampleLogprobs = logprobs.gather(1, Variable(it, volatile=True))  # gather the logprobs at sampled positions
+                    it = it.view(-1).long()
+            if t >= 1:
+                seq.append(it)
+            xt = self.embed(Variable(it, volatile=True))
+            h, c = self.lstm_cell(xt, (h, c))
+            h2 = torch.unsqueeze(h, 1)  # Bx1x64
+            h2 = h2.repeat(1, 50, 1)  # Bx50x64
+            memory_att = torch.cat([h2, memory], 2) # Bx50x68
+            memory_att = self.fc_att(memory_att).squeeze() # Bx50
+            weight = F.softmax(memory_att, dim=1) # Bx50
+            att = torch.bmm(weight.unsqueeze(1), memory).squeeze(1) # Bx4
+            predict_input = torch.cat([h, att], dim=1) # Bx68
+            logprobs = F.log_softmax(self.fc_out(predict_input), dim=1)  # Bx(vocab_size+1)
+        return torch.t(torch.stack(seq)).cpu()
 
 # sample_loader = get_shape2d_loader(split='sample', batch_size=2)
 # print(len(sample_loader.dataset))
 
-model = InstLM(train_loader.dataset.vocab_size, train_loader.dataset.max_seq_length)
+train_loader = get_shape2d_loader(split='train', batch_size=args.batch_size)
+val_loader = get_shape2d_loader(split='val', batch_size=50)
+assert train_loader.dataset.vocab_size == val_loader.dataset.vocab_size
+assert train_loader.dataset.max_seq_length == val_loader.dataset.max_seq_length
+val_loader_iter = iter(val_loader)
+
+# sample_loader = get_shape2d_loader(split='sample', batch_size=2)
+# print(len(sample_loader.dataset))
+
+model = InstAtt(train_loader.dataset.vocab_size, train_loader.dataset.max_seq_length)
+# model.load_state_dict(torch.load('models/19.pth'))
 model.cuda()
 loss_fn = LanguageModelCriterion()
 
@@ -156,13 +248,31 @@ loss_fn = LanguageModelCriterion()
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0)
 
 
+def eval_sample():
+    model.eval()
+    val_data = next(val_loader_iter)
+    val_raw_data = val_data[-1]
+    data = [Variable(_, requires_grad=False).cuda() for _ in val_data[:-1]]
+    prev_canvas, inst, next_obj, final_canvas, ref_obj = data
+    samples = model.sample(prev_canvas, final_canvas)
+    samples = decode_sequence(train_loader.dataset.ix_to_word, samples)
+    for i in range(prev_canvas.size(0)):
+        val_raw_data[i]['predicted_instruction'] = samples[i]
+    for d in val_raw_data:
+        d['prev_canvas'] = render_canvas(d['prev_canvas']).replace(' ', '')
+        d['final_canvas'] = render_canvas(d['final_canvas']).replace(' ', '')
+    r = requests.post("http://vision.cs.virginia.edu:5001/new_task", json=val_raw_data)
+    model.train()
+
+
 def train(epoch):
     adjust_lr(optimizer, epoch, args.lr, decay_rate=0.2)
     for batch_idx, data in enumerate(train_loader):
-        data = [Variable(_, requires_grad=False).cuda() for _ in data]
+        raw_data = data[-1]
+        data = [Variable(_, requires_grad=False).cuda() for _ in data[:-1]]
         prev_canvas, inst, next_obj, final_canvas, ref_obj = data
         optimizer.zero_grad()
-        loss = loss_fn(model(inst), inst[:, 1:])
+        loss = loss_fn(model(inst, prev_canvas, final_canvas), inst[:, 1:])
         loss.backward()
         clip_gradient(optimizer, 0.1)
         optimizer.step()
@@ -170,12 +280,9 @@ def train(epoch):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f})'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.data[0]))
-            model.eval()
-            samples = model.sample(batch_size=10)
-            samples = decode_sequence(train_loader.dataset.ix_to_word, samples)
-            for i in range(10):
-                print(samples[i])
-            model.train()
+        if batch_idx % (args.log_interval*10) == 0:
+            eval_sample()
+    torch.save(model.state_dict(), 'models/{}.pth'.format(epoch))
 
 
 if __name__ == '__main__':
