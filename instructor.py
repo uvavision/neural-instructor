@@ -175,6 +175,7 @@ def train(epoch):
             samples = decode_sequence(train_loader.dataset.ix_to_word, samples)
             for i in range(10):
                 print(samples[i])
+            model.train()
 
 
 if __name__ == '__main__':
