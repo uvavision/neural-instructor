@@ -176,8 +176,9 @@ class InstAtt(nn.Module):
         # https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/master/models/AttModel.py#L43
         self.embed = nn.Embedding(vocab_size + 1, self.input_size)
         # https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/master/models/AttModel.py#L372
-        self.lstm_cell = nn.LSTMCell(self.input_size, self.rnn_size)
-        self.fc_out = nn.Linear(self.rnn_size * 2, self.vocab_size + 1)
+        self.att_lstm_cell = nn.LSTMCell(self.input_size + self.rnn_size, self.rnn_size)
+        self.lang_lstm_cell = nn.LSTMCell(self.rnn_size * 2, self.rnn_size)
+        self.fc_out = nn.Linear(self.rnn_size, self.vocab_size + 1)
         self.fc_att1 = nn.Sequential(nn.Linear(self.rnn_size+4, 32), nn.ReLU(), nn.Linear(32, 1))
         self.fc_att2 = nn.Sequential(nn.Linear(self.rnn_size + 4, 32), nn.ReLU(), nn.Linear(32, 1))
         # self.att_trans = nn.Linear(8, self.rnn_size)
@@ -188,29 +189,34 @@ class InstAtt(nn.Module):
         diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
         # memory = torch.cat([diff_canvas, prev_canvas], dim=1) # 50x4
         batch_size = inst.size(0)
-        h = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
-        c = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
+        state = (Variable(torch.zeros(2, batch_size, self.rnn_size).cuda()),
+                 Variable(torch.zeros(2, batch_size, self.rnn_size).cuda()))
         outputs = []
         # inst: [0, a, b, c, 0]
         for i in range(inst.size(1) - 1):
             if i >= 1 and inst[:, i].data.sum() == 0:
                 break
-            step_output, h, c = self.step(inst[:, i], h, c, diff_canvas, prev_canvas)
+            step_output, state = self.step(inst[:, i], state, diff_canvas, prev_canvas)
             outputs.append(step_output)
         return torch.cat([_.unsqueeze(1) for _ in outputs], 1)  # Bx(seq_len)x(vocab_size+1)
 
-    def step(self, step_input, h, c, diff_canvas, prev_canvas):
+    def step(self, step_input, state, diff_canvas, prev_canvas):
+        h_lang, c_lang = state[0][1], state[1][1]
+        h_att, c_att = (state[0][0], state[1][0])
         xt = self.embed(step_input)
-        h, c = self.lstm_cell(xt, (h, c))
-        att = dual_attend(h, diff_canvas, prev_canvas, self.fc_att1, self.fc_att2)
+        att_lstm_input = torch.cat([h_lang, xt], 1)
+        h_att, c_att = self.att_lstm_cell(att_lstm_input, (h_att, c_att))
+        att = dual_attend(h_att, diff_canvas, prev_canvas, self.fc_att1, self.fc_att2)
         att = self.att_trans(att)  # Bx64
-        predict_input = torch.cat([h, att], dim=1)  # Bx68
-        step_output = F.log_softmax(self.fc_out(predict_input), dim=1)  # Bx(vocab_size+1)
-        return step_output, h, c
+        lang_lstm_input = torch.cat([att, h_att], 1)
+        h_lang, c_lang = self.lang_lstm_cell(lang_lstm_input, (h_lang, c_lang))
+        step_output = F.log_softmax(self.fc_out(h_lang), dim=1)  # Bx(vocab_size+1)
+        state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
+        return step_output, state
 
     def sample(self, prev_canvas, final_canvas):
         assert not self.embed.training
-        assert not self.lstm_cell.training
+        assert not self.att_lstm_cell.training
         assert not self.fc_out.training
         sample_max = True
         temperature = 0.8
@@ -218,8 +224,8 @@ class InstAtt(nn.Module):
         diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
         memory = torch.cat([diff_canvas, prev_canvas], dim=1) # 50x4
         batch_size = prev_canvas.size(0)
-        h = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
-        c = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
+        state = (Variable(torch.zeros(2, batch_size, self.rnn_size).cuda()),
+                 Variable(torch.zeros(2, batch_size, self.rnn_size).cuda()))
         for t in range(self.max_seq_length + 1):
             if t == 0:
                 it = torch.zeros(batch_size).long().cuda()
@@ -237,7 +243,7 @@ class InstAtt(nn.Module):
                     it = it.view(-1).long()
             if t >= 1:
                 seq.append(it)
-            logprobs, h, c = self.step(Variable(it, volatile=True), h, c, diff_canvas, prev_canvas)
+            logprobs, state = self.step(Variable(it, volatile=True), state, diff_canvas, prev_canvas)
         return torch.t(torch.stack(seq)).cpu()
 
 # sample_loader = get_shape2d_loader(split='sample', batch_size=2)
@@ -298,8 +304,8 @@ def train(epoch):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f})'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.data[0]))
-    torch.save(model.state_dict(), 'models3/model_{}.pth'.format(epoch))
-    torch.save(optimizer.state_dict(), 'models3/optimizer_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'models_topdown/model_{}.pth'.format(epoch))
+    torch.save(optimizer.state_dict(), 'models_topdown/optimizer_{}.pth'.format(epoch))
 
 
 if __name__ == '__main__':
