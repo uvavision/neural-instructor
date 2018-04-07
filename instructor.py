@@ -157,6 +157,15 @@ def attend(memory, h, trans_fn):
     return att
 
 
+def dual_attend(h, memory1, memory2, trans_fn1, trans_fn2):
+    h2 = torch.unsqueeze(h, 1)  # Bx1x64
+    h2 = h2.repeat(1, 25, 1)  # Bx25x64
+    att1 = attend(memory1, h2, trans_fn1)
+    att2 = attend(memory2, h2, trans_fn2)
+    att = torch.cat([att1, att2], dim=1)  # Bx8
+    return att
+
+
 class InstAtt(nn.Module):
     def __init__(self, vocab_size, max_seq_length):
         super().__init__()
@@ -193,14 +202,8 @@ class InstAtt(nn.Module):
     def step(self, step_input, h, c, diff_canvas, prev_canvas):
         xt = self.embed(step_input)
         h, c = self.lstm_cell(xt, (h, c))
-        h2 = torch.unsqueeze(h, 1)  # Bx1x64
-        h2 = h2.repeat(1, 25, 1)  # Bx25x64
-
-        att1 = attend(diff_canvas, h2, self.fc_att1)
-        att2 = attend(prev_canvas, h2, self.fc_att2)
-        att = torch.cat([att1, att2], dim=1)  # Bx8
+        att = dual_attend(h, diff_canvas, prev_canvas, self.fc_att1, self.fc_att2)
         att = self.att_trans(att)  # Bx64
-
         predict_input = torch.cat([h, att], dim=1)  # Bx68
         step_output = F.log_softmax(self.fc_out(predict_input), dim=1)  # Bx(vocab_size+1)
         return step_output, h, c
@@ -295,8 +298,8 @@ def train(epoch):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f})'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.data[0]))
-    torch.save(model.state_dict(), 'models2/model_{}.pth'.format(epoch))
-    torch.save(optimizer.state_dict(), 'models2/optimizer_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'models3/model_{}.pth'.format(epoch))
+    torch.save(optimizer.state_dict(), 'models3/optimizer_{}.pth'.format(epoch))
 
 
 if __name__ == '__main__':
