@@ -149,6 +149,14 @@ class InstLM(nn.Module):
         return torch.t(torch.stack(seq)).cpu()
 
 
+def attend(memory, h, trans_fn):
+    att = torch.cat([h, memory], 2)  # Bx25x68
+    att = trans_fn(att).squeeze()  # Bx25
+    weight = F.softmax(att, dim=1)  # Bx25
+    att = torch.bmm(weight.unsqueeze(1), memory).squeeze(1)  # Bx4
+    return att
+
+
 class InstAtt(nn.Module):
     def __init__(self, vocab_size, max_seq_length):
         super().__init__()
@@ -160,13 +168,16 @@ class InstAtt(nn.Module):
         self.embed = nn.Embedding(vocab_size + 1, self.input_size)
         # https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/master/models/AttModel.py#L372
         self.lstm_cell = nn.LSTMCell(self.input_size, self.rnn_size)
-        self.fc_out = nn.Linear(self.rnn_size+4, self.vocab_size + 1)
-        self.fc_att = nn.Sequential(nn.Linear(self.rnn_size+4, 32), nn.ReLU(), nn.Linear(32, 1))
+        self.fc_out = nn.Linear(self.rnn_size * 2, self.vocab_size + 1)
+        self.fc_att1 = nn.Sequential(nn.Linear(self.rnn_size+4, 32), nn.ReLU(), nn.Linear(32, 1))
+        self.fc_att2 = nn.Sequential(nn.Linear(self.rnn_size + 4, 32), nn.ReLU(), nn.Linear(32, 1))
+        # self.att_trans = nn.Linear(8, self.rnn_size)
+        self.att_trans = nn.Sequential(nn.Linear(8, 32), nn.ReLU(), nn.Linear(32, self.rnn_size))
 
     def forward(self, inst, prev_canvas, final_canvas):
         # http://pytorch.org/docs/master/nn.html#torch.nn.LSTMCell
         diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
-        memory = torch.cat([diff_canvas, prev_canvas], dim=1) # 50x4
+        # memory = torch.cat([diff_canvas, prev_canvas], dim=1) # 50x4
         batch_size = inst.size(0)
         h = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
         c = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
@@ -175,18 +186,24 @@ class InstAtt(nn.Module):
         for i in range(inst.size(1) - 1):
             if i >= 1 and inst[:, i].data.sum() == 0:
                 break
-            xt = self.embed(inst[:, i])
-            h, c = self.lstm_cell(xt, (h, c))
-            h2 = torch.unsqueeze(h, 1)  # Bx1x64
-            h2 = h2.repeat(1, 50, 1)  # Bx50x64
-            memory_att = torch.cat([h2, memory], 2) # Bx50x68
-            memory_att = self.fc_att(memory_att).squeeze() # Bx50
-            weight = F.softmax(memory_att, dim=1) # Bx50
-            att = torch.bmm(weight.unsqueeze(1), memory).squeeze(1) # Bx4
-            predict_input = torch.cat([h, att], dim=1) # Bx68
-            output = F.log_softmax(self.fc_out(predict_input), dim=1)  # Bx(vocab_size+1)
-            outputs.append(output)
+            step_output, h, c = self.step(inst[:, i], h, c, diff_canvas, prev_canvas)
+            outputs.append(step_output)
         return torch.cat([_.unsqueeze(1) for _ in outputs], 1)  # Bx(seq_len)x(vocab_size+1)
+
+    def step(self, step_input, h, c, diff_canvas, prev_canvas):
+        xt = self.embed(step_input)
+        h, c = self.lstm_cell(xt, (h, c))
+        h2 = torch.unsqueeze(h, 1)  # Bx1x64
+        h2 = h2.repeat(1, 25, 1)  # Bx25x64
+
+        att1 = attend(diff_canvas, h2, self.fc_att1)
+        att2 = attend(prev_canvas, h2, self.fc_att2)
+        att = torch.cat([att1, att2], dim=1)  # Bx8
+        att = self.att_trans(att)  # Bx64
+
+        predict_input = torch.cat([h, att], dim=1)  # Bx68
+        step_output = F.log_softmax(self.fc_out(predict_input), dim=1)  # Bx(vocab_size+1)
+        return step_output, h, c
 
     def sample(self, prev_canvas, final_canvas):
         assert not self.embed.training
@@ -217,23 +234,15 @@ class InstAtt(nn.Module):
                     it = it.view(-1).long()
             if t >= 1:
                 seq.append(it)
-            xt = self.embed(Variable(it, volatile=True))
-            h, c = self.lstm_cell(xt, (h, c))
-            h2 = torch.unsqueeze(h, 1)  # Bx1x64
-            h2 = h2.repeat(1, 50, 1)  # Bx50x64
-            memory_att = torch.cat([h2, memory], 2) # Bx50x68
-            memory_att = self.fc_att(memory_att).squeeze() # Bx50
-            weight = F.softmax(memory_att, dim=1) # Bx50
-            att = torch.bmm(weight.unsqueeze(1), memory).squeeze(1) # Bx4
-            predict_input = torch.cat([h, att], dim=1) # Bx68
-            logprobs = F.log_softmax(self.fc_out(predict_input), dim=1)  # Bx(vocab_size+1)
+            logprobs, h, c = self.step(Variable(it, volatile=True), h, c, diff_canvas, prev_canvas)
         return torch.t(torch.stack(seq)).cpu()
 
 # sample_loader = get_shape2d_loader(split='sample', batch_size=2)
 # print(len(sample_loader.dataset))
 
-train_loader = get_shape2d_loader(split='sample', batch_size=args.batch_size)
-val_loader = get_shape2d_loader(split='sample', batch_size=50)
+
+train_loader = get_shape2d_loader(split='train', batch_size=args.batch_size)
+val_loader = get_shape2d_loader(split='val', batch_size=50)
 assert train_loader.dataset.vocab_size == val_loader.dataset.vocab_size
 assert train_loader.dataset.max_seq_length == val_loader.dataset.max_seq_length
 val_loader_iter = iter(val_loader)
@@ -242,7 +251,7 @@ val_loader_iter = iter(val_loader)
 # print(len(sample_loader.dataset))
 
 model = InstAtt(train_loader.dataset.vocab_size, train_loader.dataset.max_seq_length)
-model.load_state_dict(torch.load('models/19.pth'))
+# model.load_state_dict(torch.load('models/1.pth'))
 model.cuda()
 loss_fn = LanguageModelCriterion()
 
@@ -267,10 +276,11 @@ def eval_sample():
         d['final_canvas'] = render_canvas(d['final_canvas']).replace(' ', '')
         d['diff_canvas'] = render_canvas(diff_canvas_objs[i]).replace(' ', '')
     r = requests.post("http://vision.cs.virginia.edu:5001/new_task", json=val_raw_data)
-    model.train()
+    print('request sent')
 
 
 def train(epoch):
+    model.train()
     adjust_lr(optimizer, epoch, args.lr, decay_rate=0.2)
     for batch_idx, data in enumerate(train_loader):
         raw_data = data[-1]
@@ -285,13 +295,13 @@ def train(epoch):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f})'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.data[0]))
-        if batch_idx % (args.log_interval*10) == 0:
-            eval_sample()
-    torch.save(model.state_dict(), 'models/{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'models2/model_{}.pth'.format(epoch))
+    torch.save(optimizer.state_dict(), 'models2/optimizer_{}.pth'.format(epoch))
 
 
 if __name__ == '__main__':
-    eval_sample()
-    # for epoch in range(1, args.epochs + 1):
-    #     train(epoch)
+    for epoch in range(1, args.epochs + 1):
+        eval_sample()
+        train(epoch)
+
 

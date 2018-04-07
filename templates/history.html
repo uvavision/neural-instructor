@@ -10,6 +10,7 @@
         var imgs = $('img').toArray();
         imgs.forEach(function (img) {
               var canvas_data = JSON.parse($(img).attr('data').slice('#CANVAS-'.length));
+              var diff_canvas_data = JSON.parse($(img).attr('diffdata').slice('#CANVAS-'.length));
               // console.log(canvas_data)
               var canvas = document.createElement('canvas');
               var scale = 0.5;
@@ -24,7 +25,14 @@
               ctx.strokeStyle = "gray";
               ctx.strokeRect(0, 0, canvas.width, canvas.height);
               ctx.setLineDash([]);
+              ctx.globalAlpha = 1.0;
               Common.drawCanvasData(ctx, canvas_data, scale);
+              // ctx.globalAlpha = 1.0;
+                ctx.shadowBlur=10;
+                ctx.shadowOffsetX=10;
+                ctx.shadowOffsetY=10;
+                ctx.shadowColor="black";
+              Common.drawCanvasData(ctx, diff_canvas_data, scale);
               $(img).attr('src', canvas.toDataURL("image/png"));
             }
         );
@@ -38,9 +46,9 @@
     <p>predict: {{ task['predicted_instruction'] }}</p>
     <p>gt: {{ task['current_instruction'] }}</p>
     <div class="section">
-        <img src="" data={{ task['diff_canvas'] }}>
-        <img src="" data={{ task['prev_canvas'] }}>
-        <img src="" data={{ task['final_canvas'] }}>
+        <!--<img src="" data={{ task['diff_canvas'] }}>-->
+        <img src="" data={{ task['prev_canvas'] }} diffdata={{ task['diff_canvas'] }}>
+        <!--<img src="" data={{ task['final_canvas'] }}>-->
     </div>
     <p></p>
     <p></p>

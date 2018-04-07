@@ -100,7 +100,6 @@ var Common = (function() {
     function drawCanvasData(ctx, canvas_data, scale) {
         // ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
         // ctx.lineWidth = 3;
-        ctx.globalAlpha = 0.8;
         canvas_data.forEach(function (box_anno) {
             bbox = [box_anno['left']*scale, box_anno['top']*scale, box_anno['width']*scale, box_anno['height']*scale];
             color = box_anno['label'];
