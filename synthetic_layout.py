@@ -18,6 +18,10 @@ abs_loc_dict = {
     'center': (2, 2)
 }
 
+MODE_FULL = 'FULL'
+MODE_MIN = 'MIN'
+MODES = [MODE_MIN, MODE_FULL]
+
 coord2abs_loc_name = {v: k for k, v in abs_loc_dict.items()}
 
 relative_loc_dict = {
@@ -42,6 +46,8 @@ class Object:
         self.row = row
         self.col = col
         self.identify_status = 'color-shape-location'
+        # TODO: add id for easier reference of an object
+        # e.g., self._id = hashcode or int
 
     def get_desc(self):
         assert self.identify_status in ['color-shape', 'location']
@@ -58,6 +64,8 @@ class Canvas:
     def __init__(self):
         self.objects = []
         self.color_shape_cnt = Counter()
+        # TODO: add spatial relation between objects
+        # e.g., d_spatial_loc[_id1][_id2] = rel as in relative_loc_dict
 
     def get_ref_obj(self):
         # randomly select an object identified by color-shape or abs location as reference
@@ -104,6 +112,33 @@ class Canvas:
                 shape = 'rectangle'
             layout.append({"left": left, "top": top, "width": width, "height": height, "label": label, "shape": shape})
         return '#CANVAS-' + str(layout).replace("'", '"').replace(' ', '')
+
+    def add(self, obj):
+        # TODO: update objects and d_spatial_loc, check if valid first.
+        raise NotImplementedError
+
+    def delete(self, obj):
+        # TODO: update objects and d_spatial_loc, check if valid first.
+        raise NotImplementedError
+
+    def move(self, obj_delete, obj_add):
+        # TODO: update objects and d_spatial_loc, check if valid first.
+        # just call delete and add?
+        raise NotImplementedError
+
+    def get_ref_obj(self, obj, mode=MODE_FULL):
+        # TODO: get reference to an object, mode as FULL or MIN
+        raise NotImplementedError
+
+    def get_ref_obj_all(self, obj, mode=""):
+        # TODO: get reference to all objects, mode as FULL or MIN
+        raise NotImplementedError
+
+    def get_next_action(self):
+        # TODO: get next action based on latest painting
+        # e.g., if previous painting is correct, check if complete or add new.
+        # e.g., if previous painting is incorrect, correct it.
+        raise NotImplementedError
 
 
 class Instruction:
@@ -273,6 +308,7 @@ def get_add_inst(canvas, single_obj_only=False):
             inst = PatternAddInstruction(ref_obj, relative_loc, abs_loc, [obj1, obj2, obj3])
             if inst.viable(canvas):
                 return inst
+
 
 def get_remove_inst(canvas):
     assert len(canvas.objects) > 0
