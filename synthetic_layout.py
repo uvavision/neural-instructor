@@ -1,9 +1,12 @@
 import random
-from collections import Counter
+from collections import Counter, defaultdict
 import os
 import datetime
 import json
 from tqdm import tqdm
+from utils import get_hashcode
+
+from const import *
 
 # os.environ['domain'] = '2Dshape'
 # from main import coll_chat
@@ -18,10 +21,6 @@ abs_loc_dict = {
     'center': (2, 2)
 }
 
-MODE_FULL = 'FULL'
-MODE_MIN = 'MIN'
-MODES = [MODE_MIN, MODE_FULL]
-
 coord2abs_loc_name = {v: k for k, v in abs_loc_dict.items()}
 
 relative_loc_dict = {
@@ -32,11 +31,20 @@ relative_loc_dict = {
     'top-left-of': lambda row, col: (row - 1, col - 1),
     'top-right-of': lambda row, col: (row - 1, col + 1),
     'bottom-left-of': lambda row, col: (row + 1, col - 1),
-    'bottom-right-of': lambda row, col: (row + 1, col - 1)
+    'bottom-right-of': lambda row, col: (row + 1, col + 1)
 }
+
 
 colors = ['red', 'green', 'blue']
 shapes = ['square', 'circle', 'triangle']
+
+
+def get_rel_loc(obj1, obj2):
+    del_c = obj1.col - obj2.col
+    del_r = obj1.row - obj2.row
+    if (del_c, del_r) in DICT_DEL_REL_LOC:
+        return DICT_DEL_REL_LOC[(del_c, del_r)]
+    return None
 
 
 class Object:
@@ -46,8 +54,11 @@ class Object:
         self.row = row
         self.col = col
         self.identify_status = 'color-shape-location'
-        # TODO: add id for easier reference of an object
-        # e.g., self._id = hashcode or int
+        self.id_ = self.get_id()
+
+    def get_id(self):
+        id_ = get_hashcode([self.color, self.shape, self.row, self.col])
+        return id_
 
     def get_desc(self):
         assert self.identify_status in ['color-shape', 'location']
@@ -61,11 +72,14 @@ class Object:
 
 
 class Canvas:
-    def __init__(self):
+    def __init__(self, grid_size=GRID_SIZE):
         self.objects = []
         self.color_shape_cnt = Counter()
-        # TODO: add spatial relation between objects
-        # e.g., d_spatial_loc[_id1][_id2] = rel as in relative_loc_dict
+        self.d_id_obj = {}
+        self.d_feature_id = defaultdict(list)  # key (color, shape)
+        self.d_spatical_rel = defaultdict(dict)
+        self.d_grid_state = defaultdict(dict)
+        self.grid_size = grid_size
 
     def get_ref_obj(self):
         # randomly select an object identified by color-shape or abs location as reference
@@ -113,26 +127,65 @@ class Canvas:
             layout.append({"left": left, "top": top, "width": width, "height": height, "label": label, "shape": shape})
         return '#CANVAS-' + str(layout).replace("'", '"').replace(' ', '')
 
+    def get_state_by_coordinates(self, obj):
+        y = obj.row
+        x = obj.col
+        if y in self.d_grid_state and x in in self.d_grid_state[y]:
+            return self.d_grid_state[y][x]
+        return STATE_EMPTY
+
+    def update_spatial_ref(self, obj_new):
+        for id_, obj in self.d_id_obj:
+            rel = get_rel_loc(obj, obj_new)
+            if rel:
+                self.d_spatical_rel[obj.id_][obj_new.id_] = rel
+            rel = get_rel_loc(obj_new, obj)
+            if rel:
+                self.d_spatical_rel[obj_new.id_][obj.id_] = rel
+
+    def is_action_valid(self, obj, action):
+        if action == ADD:
+            state = self.get_state_by_coordinates(obj)
+            if state == STATE_OCCU:
+                return False
+            return True
+        if action == DELETE:
+            if obj.id_ in self.d_id_obj:
+                return True
+            return False
+        return False
+
     def add(self, obj):
-        # TODO: update objects and d_spatial_loc, check if valid first.
-        raise NotImplementedError
+        # TODO: update objects
+        if is_action_valid(obj, ADD):
+            self.d_id_obj[obj.id_] = obj
+            self.d_grid_state[obj.row][obj.col] = STATE_OCCU
+            self.d_feature[(obj.color, obj.shape)].append(obj.id_)
+            self.d_feature[obj.color].append(obj.id_)
+            self.d_feature[obj.shape].append(obj.id_)
+            self.update_spatial_ref(obj)
+            return STATUS_SUCCESSFUL
+        else:
+            return STATUS_FAILED
 
     def delete(self, obj):
-        # TODO: update objects and d_spatial_loc, check if valid first.
-        raise NotImplementedError
+        # TODO: update objects
+        if is_action_valid(obj, DELETE):
+            del self.d_id_obj[obj.id_]
+            del self.d_spatical_rel[obj.id_]
+            self.d_feature_id[(obj.color, obj.shape)].remove(obj.id_)
+            for k, v in self.d_spatical_rel.items():
+                if obj.id_ in v:
+                    del self.d_spatical_rel[k][obj.id_]
+            self.d_grid_state[obj.row][obj.col] = STATE_EMPTY
+            return STATUS_SUCCESSFUL
+        return STATUS_FAILED
 
-    def move(self, obj_delete, obj_add):
-        # TODO: update objects and d_spatial_loc, check if valid first.
-        # just call delete and add?
-        raise NotImplementedError
-
-    def get_ref_obj(self, obj, mode=MODE_FULL):
-        # TODO: get reference to an object, mode as FULL or MIN
-        raise NotImplementedError
-
-    def get_ref_obj_all(self, obj, mode=""):
-        # TODO: get reference to all objects, mode as FULL or MIN
-        raise NotImplementedError
+    def move(self, obj_from, obj_to):
+        if self.is_action_valid(obj_from, DELETE) and \
+           self.is_action_valid(obj_to, ADD):
+            return self.delete(obj_from) and self.add(obj_add)
+        return STATUS_FAILED
 
     def get_next_action(self):
         # TODO: get next action based on latest painting
@@ -142,7 +195,7 @@ class Canvas:
 
 
 class Instruction:
-    def __init__(self, ref_obj, relative_loc, abs_loc):
+    def __init__(self, ref_obj, relative_loc, abs_loc, canvas=None):
         # abs_loc: top-left ...
         # relative_loc: top-of ...
         if ref_obj:
@@ -154,6 +207,7 @@ class Instruction:
         self.ref_obj = ref_obj
         self.relative_loc = relative_loc
         self.absolute_loc = abs_loc
+        self.canvas = canvas
 
     def viable(self, canvas):
         raise NotImplementedError
@@ -163,6 +217,21 @@ class Instruction:
             return self.absolute_loc + " of the canvas"
         if self.relative_loc:
             return "{} the {}".format(self.relative_loc, self.ref_obj.get_desc())
+
+    def get_ref_obj(self, obj, mode=MODE_FULL):
+        # TODO: get reference to an object, mode as FULL or MIN
+        key_feature = (obj.color, obj.shape)
+        if mode == MODE_FULL:
+            return key_feature
+        if mode == MODE_MIN:
+            if key_feature in self.canvas.d_feature_id:
+                return key_feature
+            # TODO: add randomly chose feature if neither
+            if obj.color not in self.canvas.d_feature_id:
+                return obj.color
+            if obj.shape not in self.canvas.d_feature_id:
+                return obj.shape
+        return None
 
 
 class AddInstruction(Instruction):
