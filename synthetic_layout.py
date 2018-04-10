@@ -1,5 +1,5 @@
 import random
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, OrderedDict
 import os
 import datetime
 import json
@@ -77,8 +77,9 @@ class Canvas:
         self.color_shape_cnt = Counter()
         self.d_id_obj = {}
         self.d_feature_id = defaultdict(list)  # key (color, shape)
+        self.d_id_ref_feature = defaultdict(list)
         self.d_spatical_rel = defaultdict(dict)
-        self.d_grid_state = defaultdict(dict)
+        self.d_grid_state = OrderedDict()  # currently not maintain all history
         self.grid_size = grid_size
 
     def get_ref_obj(self):
@@ -128,10 +129,12 @@ class Canvas:
         return '#CANVAS-' + str(layout).replace("'", '"').replace(' ', '')
 
     def get_state_by_coordinates(self, obj):
-        y = obj.row
-        x = obj.col
-        if y in self.d_grid_state and x in in self.d_grid_state[y]:
-            return self.d_grid_state[y][x]
+        # y = obj.row
+        # x = obj.col
+        # if y in self.d_grid_state and x in in self.d_grid_state[y]:
+        #     return self.d_grid_state[y][x]
+        if (obj.row, obj.col) in self.d_grid_state:
+            return self.d_grid_state[(obj.row, obj.col)]
         return STATE_EMPTY
 
     def update_spatial_ref(self, obj_new):
@@ -143,7 +146,16 @@ class Canvas:
             if rel:
                 self.d_spatical_rel[obj_new.id_][obj.id_] = rel
 
-    def is_action_valid(self, obj, action):
+    def update_ref_obj_features(self, obj_rm):  # already removed
+        if (obj_rm.color, obj_rm.shape) in self.d_feature_id:
+            if len(self.d_feature_id) == 1:
+                id_ = self.d_feature_id[(obj_rm.color, obj_rm.shape)]
+                features = self.get_ref_obj_features(self.d_id_obj[id_])
+                self.d_id_ref_feature[id_] = features
+
+    def is_action_viable(self, obj, action):
+        if not (0 <= self.obj.row <= self.grid_size and 0 <= self.obj.col <= self.grid_size):
+            return False
         if action == ADD:
             state = self.get_state_by_coordinates(obj)
             if state == STATE_OCCU:
@@ -156,28 +168,34 @@ class Canvas:
         return False
 
     def add(self, obj):
-        # TODO: update objects
-        if is_action_valid(obj, ADD):
+        # TODO: update "self.objects" if necessary
+        if is_action_viable(obj, ADD):
             self.d_id_obj[obj.id_] = obj
-            self.d_grid_state[obj.row][obj.col] = STATE_OCCU
-            self.d_feature[(obj.color, obj.shape)].append(obj.id_)
-            self.d_feature[obj.color].append(obj.id_)
-            self.d_feature[obj.shape].append(obj.id_)
+            self.d_grid_state[(obj.row, obj.col)] = obj.id_  # STATE_OCCU
+            self.d_feature_id[(obj.color, obj.shape)].append(obj.id_)
+            self.d_feature_id[obj.color].append(obj.id_)
+            self.d_feature_id[obj.shape].append(obj.id_)
+            features = self.get_ref_obj_features(obj)
+            self.d_id_ref_feature[obj.id_] = features
             self.update_spatial_ref(obj)
             return STATUS_SUCCESSFUL
         else:
             return STATUS_FAILED
 
     def delete(self, obj):
-        # TODO: update objects
-        if is_action_valid(obj, DELETE):
+        # TODO: update "self.objects" if necessary
+        if is_action_viable(obj, DELETE):
             del self.d_id_obj[obj.id_]
             del self.d_spatical_rel[obj.id_]
+            self. = self.get_ref_obj_features(obj)
             self.d_feature_id[(obj.color, obj.shape)].remove(obj.id_)
+            self.d_feature_id[obj.color].remove(obj.id_)
+            self.d_feature_id[obj.shape].remove(obj.id_)
+            self.update_ref_obj_features(obj)
             for k, v in self.d_spatical_rel.items():
                 if obj.id_ in v:
                     del self.d_spatical_rel[k][obj.id_]
-            self.d_grid_state[obj.row][obj.col] = STATE_EMPTY
+            self.d_grid_state[(obj.row, obj.col)] = STATE_EMPTY
             return STATUS_SUCCESSFUL
         return STATUS_FAILED
 
@@ -186,6 +204,19 @@ class Canvas:
            self.is_action_valid(obj_to, ADD):
             return self.delete(obj_from) and self.add(obj_add)
         return STATUS_FAILED
+
+    def get_ref_obj_features(self, obj):
+        # TODO: get reference to an object, mode as FULL or MIN
+        # default_key_feature = (obj.color, obj.shape)
+        # lst = [default_key_feature]
+        # if default_key_feature in self.d_feature_id:
+        #     return lst
+        lst = []
+        if obj.color not in self.d_feature_id:
+            lst.append(obj.color)
+        if obj.shape not in self.d_feature_id:
+            lst.append(obj.shape)
+        return lst
 
     def get_next_action(self):
         # TODO: get next action based on latest painting
@@ -218,20 +249,12 @@ class Instruction:
         if self.relative_loc:
             return "{} the {}".format(self.relative_loc, self.ref_obj.get_desc())
 
-    def get_ref_obj(self, obj, mode=MODE_FULL):
-        # TODO: get reference to an object, mode as FULL or MIN
-        key_feature = (obj.color, obj.shape)
-        if mode == MODE_FULL:
-            return key_feature
+    def get_obj_ref_text(self, obj, mode=MODE_FULL):
         if mode == MODE_MIN:
-            if key_feature in self.canvas.d_feature_id:
-                return key_feature
-            # TODO: add randomly chose feature if neither
-            if obj.color not in self.canvas.d_feature_id:
-                return obj.color
-            if obj.shape not in self.canvas.d_feature_id:
-                return obj.shape
-        return None
+            features = self.canvas.d_id_ref_feature[obj.id_]
+            if len(features) > 0:
+                return "the {} object".format(random.choice(features))
+        return "{} {}".format(obj.color, obj.shape)
 
 
 class AddInstruction(Instruction):
