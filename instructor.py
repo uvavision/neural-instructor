@@ -41,6 +41,7 @@ def to_contiguous(tensor):
     else:
         return tensor.contiguous()
 
+
 # https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/13516dfd905b0755c28c922e39722ce09ca4f689/misc/utils.py#L17
 # Input: seq, N*D numpy array, with element 0 .. vocab_size. 0 is END token.
 def decode_sequence(ix_to_word, seq):
@@ -59,11 +60,32 @@ def decode_sequence(ix_to_word, seq):
         out.append(txt)
     return out
 
+
 def compute_diff_canvas(canvas1, canvas2):
     mask = (canvas1.sum(dim=2, keepdim=True) > 0).repeat(1, 1, 4)
     diff_canvas = Variable(canvas2.data.clone())
     diff_canvas[mask] = -1
     return diff_canvas
+
+
+def encode_canvas(current_canvas, final_canvas):
+    current_canvas = current_canvas.data
+    final_canvas = final_canvas.data
+    canvas_encode = torch.zeros((final_canvas.size(0), 25, 6)).fill_(-1).cuda()
+    canvas_encode[:, :, :4] = final_canvas  # copy final canvas
+    final_canvas_mask = (final_canvas.sum(dim=2) > 0)
+    canvas_encode[:, :, 4][final_canvas_mask] = 1
+    current_canvas_mask = (current_canvas.sum(dim=2) > 0)
+    canvas_encode[:, :, 4][current_canvas_mask] = 0
+    canvas_conv = torch.zeros(canvas_encode.size(0), 25).cuda()  # Bx25
+    canvas_conv[current_canvas_mask] = 1
+    canvas_conv = canvas_conv.view(canvas_encode.size(0), 1, 5, 5)
+    canvas_conv = F.pad(canvas_conv, pad=(1,1,1,1), value=0)
+    filters = Variable(torch.ones(1, 1, 3, 3).cuda())
+    filters.data[:, :, 1, 1] = 0
+    canvas_conv = F.conv2d(canvas_conv, filters)
+    canvas_encode[:, :, 5] = canvas_conv.data.view(canvas_conv.size(0), 25)
+    return Variable(canvas_encode)
 
 
 # https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/master/misc/utils.py#L39
@@ -157,12 +179,16 @@ def attend(memory, h, trans_fn):
     return att
 
 
-def dual_attend(h, memory1, memory2, trans_fn1, trans_fn2):
+def dual_attend(h, memory1, memory2, trans_fn1, trans_fn2, trans_fn3, extra):
+    target_obj, ref_obj = extra
     h2 = torch.unsqueeze(h, 1)  # Bx1x64
     h2 = h2.repeat(1, 25, 1)  # Bx25x64
     att1 = attend(memory1, h2, trans_fn1)
     att2 = attend(memory2, h2, trans_fn2)
-    att = torch.cat([att1, att2], dim=1)  # Bx8
+    att3 = attend(memory2, h2, trans_fn3)
+    # att = torch.cat([att1, att2], dim=1)  # Bx8
+    # att = torch.cat([target_obj.float(), att2, att3], dim=1)  # Bx8
+    att = torch.cat([att1[:, :4], att2, att3], dim=1)  # Bx8
     return att
 
 
@@ -179,14 +205,15 @@ class InstAtt(nn.Module):
         self.att_lstm_cell = nn.LSTMCell(self.input_size + self.rnn_size, self.rnn_size)
         self.lang_lstm_cell = nn.LSTMCell(self.rnn_size * 2, self.rnn_size)
         self.fc_out = nn.Linear(self.rnn_size, self.vocab_size + 1)
-        self.fc_att1 = nn.Sequential(nn.Linear(self.rnn_size+4, 32), nn.ReLU(), nn.Linear(32, 1))
+        self.fc_att1 = nn.Sequential(nn.Linear(self.rnn_size + 6, 32), nn.ReLU(), nn.Linear(32, 1))
         self.fc_att2 = nn.Sequential(nn.Linear(self.rnn_size + 4, 32), nn.ReLU(), nn.Linear(32, 1))
+        self.fc_att3 = nn.Sequential(nn.Linear(self.rnn_size + 4, 32), nn.ReLU(), nn.Linear(32, 1))
         # self.att_trans = nn.Linear(8, self.rnn_size)
-        self.att_trans = nn.Sequential(nn.Linear(8, 32), nn.ReLU(), nn.Linear(32, self.rnn_size))
+        self.att_trans = nn.Sequential(nn.Linear(4+4+4, 32), nn.ReLU(), nn.Linear(32, self.rnn_size))
 
-    def forward(self, inst, prev_canvas, final_canvas):
+    def forward(self, inst, prev_canvas, final_canvas, extra=None):
         # http://pytorch.org/docs/master/nn.html#torch.nn.LSTMCell
-        diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
+        diff_canvas = encode_canvas(prev_canvas, final_canvas)  # Bx5x7x7
         # memory = torch.cat([diff_canvas, prev_canvas], dim=1) # 50x4
         batch_size = inst.size(0)
         state = (Variable(torch.zeros(2, batch_size, self.rnn_size).cuda()),
@@ -196,17 +223,17 @@ class InstAtt(nn.Module):
         for i in range(inst.size(1) - 1):
             if i >= 1 and inst[:, i].data.sum() == 0:
                 break
-            step_output, state = self.step(inst[:, i], state, diff_canvas, prev_canvas)
+            step_output, state = self.step(inst[:, i], state, diff_canvas, prev_canvas, extra)
             outputs.append(step_output)
         return torch.cat([_.unsqueeze(1) for _ in outputs], 1)  # Bx(seq_len)x(vocab_size+1)
 
-    def step(self, step_input, state, diff_canvas, prev_canvas):
+    def step(self, step_input, state, diff_canvas, prev_canvas, extra=None):
         h_lang, c_lang = state[0][1], state[1][1]
         h_att, c_att = (state[0][0], state[1][0])
         xt = self.embed(step_input)
         att_lstm_input = torch.cat([h_lang, xt], 1)
         h_att, c_att = self.att_lstm_cell(att_lstm_input, (h_att, c_att))
-        att = dual_attend(h_att, diff_canvas, prev_canvas, self.fc_att1, self.fc_att2)
+        att = dual_attend(h_att, diff_canvas, prev_canvas, self.fc_att1, self.fc_att2, self.fc_att3, extra)
         att = self.att_trans(att)  # Bx64
         lang_lstm_input = torch.cat([att, h_att], 1)
         h_lang, c_lang = self.lang_lstm_cell(lang_lstm_input, (h_lang, c_lang))
@@ -214,15 +241,14 @@ class InstAtt(nn.Module):
         state = (torch.stack([h_att, h_lang]), torch.stack([c_att, c_lang]))
         return step_output, state
 
-    def sample(self, prev_canvas, final_canvas):
+    def sample(self, prev_canvas, final_canvas, extra=None):
         assert not self.embed.training
         assert not self.att_lstm_cell.training
         assert not self.fc_out.training
         sample_max = True
         temperature = 0.8
         seq = []
-        diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
-        memory = torch.cat([diff_canvas, prev_canvas], dim=1) # 50x4
+        diff_canvas = encode_canvas(prev_canvas, final_canvas)
         batch_size = prev_canvas.size(0)
         state = (Variable(torch.zeros(2, batch_size, self.rnn_size).cuda()),
                  Variable(torch.zeros(2, batch_size, self.rnn_size).cuda()))
@@ -243,7 +269,7 @@ class InstAtt(nn.Module):
                     it = it.view(-1).long()
             if t >= 1:
                 seq.append(it)
-            logprobs, state = self.step(Variable(it, volatile=True), state, diff_canvas, prev_canvas)
+            logprobs, state = self.step(Variable(it, volatile=True), state, diff_canvas, prev_canvas, extra)
         return torch.t(torch.stack(seq)).cpu()
 
 # sample_loader = get_shape2d_loader(split='sample', batch_size=2)
@@ -260,9 +286,10 @@ val_loader_iter = iter(val_loader)
 # print(len(sample_loader.dataset))
 
 model = InstAtt(train_loader.dataset.vocab_size, train_loader.dataset.max_seq_length)
-# model.load_state_dict(torch.load('models/1.pth'))
+# model.load_state_dict(torch.load('models_topdown/model_20.pth'))
 model.cuda()
 loss_fn = LanguageModelCriterion()
+
 
 # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0)
@@ -276,7 +303,7 @@ def eval_sample():
     prev_canvas, inst, next_obj, final_canvas, ref_obj = data
     diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
     diff_canvas_objs = [train_loader.dataset.decode_canvas(diff_canvas.data[i]) for i in range(diff_canvas.size(0))]
-    samples = model.sample(prev_canvas, final_canvas)
+    samples = model.sample(prev_canvas, final_canvas, (next_obj, ref_obj))
     samples = decode_sequence(train_loader.dataset.ix_to_word, samples)
     for i in range(prev_canvas.size(0)):
         val_raw_data[i]['predicted_instruction'] = samples[i]
@@ -296,7 +323,7 @@ def train(epoch):
         data = [Variable(_, requires_grad=False).cuda() for _ in data[:-1]]
         prev_canvas, inst, next_obj, final_canvas, ref_obj = data
         optimizer.zero_grad()
-        loss = loss_fn(model(inst, prev_canvas, final_canvas), inst[:, 1:])
+        loss = loss_fn(model(inst, prev_canvas, final_canvas, (next_obj, ref_obj)), inst[:, 1:])
         loss.backward()
         clip_gradient(optimizer, 0.1)
         optimizer.step()
@@ -304,8 +331,8 @@ def train(epoch):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f})'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.data[0]))
-    torch.save(model.state_dict(), 'models_topdown/model_{}.pth'.format(epoch))
-    torch.save(optimizer.state_dict(), 'models_topdown/optimizer_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'models_topdown_3att/model_{}.pth'.format(epoch))
+    torch.save(optimizer.state_dict(), 'models_topdown_3att/optimizer_{}.pth'.format(epoch))
 
 
 if __name__ == '__main__':
