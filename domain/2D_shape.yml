@@ -1,0 +1,44 @@
+objects:
+  color:
+    type: text
+  shape:
+    type: text
+  abs_location:
+    type: text
+  rel_location:
+    type: text
+
+entities:
+- location
+- info
+- people
+- price
+- cuisine
+
+intents:
+ - greet
+ - affirm
+ - deny
+ - inform
+ - thankyou
+ - request_info
+
+templates:
+  utter_greet:
+    - "hey there!"
+  
+
+actions:
+- utter_begin
+- utter_end
+- utter_ack_dosearch
+- utter_ack_findalternatives
+- utter_ack_makereservation
+- utter_ask_cuisine
+- utter_ask_object
+- utter_ask_location
+- utter_ask_clearification
+- agent.ActionAdd
+- agent.ActionDelete
+- agent.ActionRemove
+- agent.ActionSuggest

@@ -1,7 +1,17 @@
 # mode for generating instructions
+OTHER_ROLE = {'agent': 'user', 'user': 'agent'}  # painter/instructor - agent/user
+
 MODE_FULL = 'full'
 MODE_MIN = 'min'
 MODES = [MODE_MIN, MODE_FULL]
+
+SINGLE = 'single'
+MULTI = 'multi'
+PATTERN = 'pattern'
+
+LOC_ABS = 'location_absolute'
+LOC_REL = 'location_relative'
+
 
 # state of grid
 STATE_EMPTY = 0
