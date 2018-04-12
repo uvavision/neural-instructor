@@ -186,6 +186,14 @@ def attend(memory, h, trans_fn):
     return att
 
 
+def attend_target(conv_canvas, trans_fn):
+    # conv_canvas: Bx25x6
+    att = trans_fn(conv_canvas).squeeze()  # Bx25
+    weight = F.softmax(att, dim=1)  # Bx25
+    att = torch.bmm(weight.unsqueeze(1), conv_canvas).squeeze(1)  # Bx6
+    return att
+
+
 def hard_attend(memory, h, trans_fn):
     att = torch.cat([h, memory], 2)  # Bx25x68
     att = trans_fn(att).squeeze()  # Bx25
@@ -200,6 +208,30 @@ def hard_attend(memory, h, trans_fn):
         output[i] = memory[i, action[i]].data
     return Variable(output)
 
+
+standard_loc0 = torch.LongTensor([[0]]).repeat(1000, 25).cuda()
+standard_loc2 = torch.LongTensor([[2]]).repeat(1000, 25).cuda()
+standard_loc4 = torch.LongTensor([[4]]).repeat(1000, 25).cuda()
+
+
+def hard_attend3(memory, h, trans_fn, target_obj, is_training):
+    if is_training:
+        return target_obj.float()
+    batch_size = memory.size(0)
+    assert batch_size <= standard_loc0.size(0)
+    mem_data = memory.data.long()
+    mask1 = mem_data[:, :, 4] >= 1  # object in final canvas but not in current canvas
+    mask2 = mem_data[:, :, 5] >= 1  # Bx25 surrounded by objects in the current canvas
+    loc0, loc2, loc4 = standard_loc0[:batch_size], standard_loc2[:batch_size], standard_loc4[:batch_size]
+    mask00 = torch.eq(mem_data[:, :, 3], loc0) | torch.eq(mem_data[:, :, 3], loc4)  # (, 0) or (, 4)
+    mask01 = torch.eq(mem_data[:, :, 2], loc0) & mask00  # (0, 0) or (0, 4)
+    mask02 = torch.eq(mem_data[:, :, 2], loc4) & mask00  # (4, 0) or (4, 4)
+    mask03 = torch.eq(mem_data[:, :, 2], loc2) & torch.eq(mem_data[:, :, 3], loc2)  # (2, 2)
+    mask = mask1 & (mask2 | mask01 | mask02 | mask03)
+    output = memory.data.new(memory.size(0), memory.size(2))  # Bx6
+    for i in range(output.size(0)):
+        output[i] = memory[i, torch.nonzero(mask[i])[0, 0]].data
+    return Variable(output)
 
 def hard_attend2(memory, h, trans_fn, target_obj, is_training):
     if is_training:
@@ -225,8 +257,9 @@ def dual_attend(h, memory1, memory2, trans_fn1, trans_fn2, trans_fn3, extra):
     target_obj, ref_obj, is_training = extra
     h2 = torch.unsqueeze(h, 1)  # Bx1x64
     h2 = h2.repeat(1, 25, 1)  # Bx25x64
-    att1 = hard_attend2(memory1, h2, trans_fn1, target_obj, is_training)
+    att1 = hard_attend3(memory1, h2, trans_fn1, target_obj, is_training)
     # att1 = attend(memory1, h2, trans_fn1)
+    # att1 = attend_target(memory1, trans_fn1)
     att2 = attend(memory2, h2, trans_fn2)
     att3 = attend(memory2, h2, trans_fn3)
     # att = torch.cat([att1, att2], dim=1)  # Bx8
@@ -250,6 +283,7 @@ class InstAtt(nn.Module):
         self.lang_lstm_cell = nn.LSTMCell(self.rnn_size * 2, self.rnn_size)
         self.fc_out = nn.Linear(self.rnn_size, self.vocab_size + 1)
         # self.fc_att1 = nn.Sequential(nn.Linear(self.rnn_size + 6, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
+        # self.fc_att1 = nn.Sequential(nn.Linear(6, 3), nn.ReLU(),nn.Linear(3, 1))
         self.fc_att1 = None
         self.fc_att2 = nn.Sequential(nn.Linear(self.rnn_size + 4, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
         self.fc_att3 = nn.Sequential(nn.Linear(self.rnn_size + 4, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
@@ -397,8 +431,8 @@ def train(epoch):
                        100. * batch_idx / len(train_loader), loss.data[0]))
     # torch.save(model.state_dict(), 'models_topdown_3att_att64_hardatt/model_{}.pth'.format(epoch))
     # torch.save(optimizer.state_dict(), 'models_topdown_3att_att64_hardatt/optimizer_{}.pth'.format(epoch))
-    torch.save(model.state_dict(), 'models_topdown_3att_att64_hardatt_diff/model_{}.pth'.format(epoch))
-    torch.save(optimizer.state_dict(), 'models_topdown_3att_att64_hardatt_diff/optimizer_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'models_topdown_3att_att64_content_planning_absmix/model_{}.pth'.format(epoch))
+    torch.save(optimizer.state_dict(), 'models_topdown_3att_att64_content_planning_absmix/optimizer_{}.pth'.format(epoch))
 
 
 if __name__ == '__main__':

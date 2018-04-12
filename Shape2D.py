@@ -63,10 +63,12 @@ class Shape2D(torch.utils.data.Dataset):
         final_canvas_data = self.encode_canvas(raw_data['final_canvas'])
         # ref_obj = np.array((0, 0, 0, 0), dtype=np.int64)
         # assert 'ref_obj' in raw_data
-        # if 'ref_obj' in raw_data:
-        ref_obj = self.encode_obj(raw_data['ref_obj']).astype(np.int64)
-        a = prev_canvas_data[ref_obj[-2]*5+ref_obj[-1]].astype(np.int64)
-        assert  np.array_equal(a, ref_obj)
+        if 'ref_obj' in raw_data:
+            ref_obj = self.encode_obj(raw_data['ref_obj']).astype(np.int64)
+            a = prev_canvas_data[ref_obj[-2]*5+ref_obj[-1]].astype(np.int64)
+            assert np.array_equal(a, ref_obj)
+        else:
+            ref_obj = np.array([-1, -1, -1, -1], dtype=np.int64)
         return prev_canvas_data, inst_data, next_obj_data, final_canvas_data, ref_obj, raw_data
 
     def get_raw_item(self, index):

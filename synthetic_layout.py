@@ -336,10 +336,9 @@ if __name__ == '__main__':
                              "next_object": next_obj,
                              "ref_obj": inst.ref_obj.get_info()})
             else:
-                pass
-                # data.append({"prev_canvas": prev_canvas,
-                #              "current_instruction": current_instuction,
-                #              "next_object": next_obj})
+                data.append({"prev_canvas": prev_canvas,
+                             "current_instruction": current_instuction,
+                             "next_object": next_obj})
 
             canvas.exec_instruction(inst)
         for item in data:
