@@ -8,6 +8,8 @@ from torch.autograd import Variable
 import requests
 from Shape2D import get_shape2d_loader, render_canvas
 from utils import adjust_lr, clip_gradient
+from torch.distributions import Categorical
+from tqdm import tqdm
 
 
 # Training settings
@@ -62,7 +64,7 @@ def decode_sequence(ix_to_word, seq):
 
 
 def compute_diff_canvas(canvas1, canvas2):
-    mask = (canvas1.sum(dim=2, keepdim=True) > 0).repeat(1, 1, 4)
+    mask = (canvas1.sum(dim=2, keepdim=True) >= 0).repeat(1, 1, 4)
     diff_canvas = Variable(canvas2.data.clone())
     diff_canvas[mask] = -1
     return diff_canvas
@@ -73,9 +75,9 @@ def canvas_conv(current_canvas, final_canvas):
     final_canvas = final_canvas.data
     canvas_encode = torch.zeros((final_canvas.size(0), 25, 6)).fill_(-1).cuda()
     canvas_encode[:, :, :4] = final_canvas  # copy final canvas
-    final_canvas_mask = (final_canvas.sum(dim=2) > 0)
+    final_canvas_mask = (final_canvas.sum(dim=2) >= 0)
     canvas_encode[:, :, 4][final_canvas_mask] = 1
-    current_canvas_mask = (current_canvas.sum(dim=2) > 0)
+    current_canvas_mask = (current_canvas.sum(dim=2) >= 0)
     canvas_encode[:, :, 4][current_canvas_mask] = 0
     conv_feats = torch.zeros(canvas_encode.size(0), 25).cuda()  # Bx25
     conv_feats[current_canvas_mask] = 1
@@ -93,17 +95,22 @@ class LanguageModelCriterion(nn.Module):
     def __init__(self):
         super(LanguageModelCriterion, self).__init__()
 
-    def forward(self, output, target):
+    def forward(self, input, target):
         # truncate to the same size
-        target = target[:, :output.size(1)]
+        batch_size = input.size(0)
+        target = target[:, :input.size(1)]
+        # TODO
         num_non_zeros = (target.data > 0).sum(dim=1) # B
-        mask = output.data.new(target.size()).fill_(0)
+        mask = input.data.new(target.size()).fill_(0)
         for i in range(mask.size(0)):
             mask[i, :num_non_zeros[i]+1] = 1
         mask = Variable(mask, requires_grad=False).view(-1, 1)
-        output = to_contiguous(output).view(-1, output.size(2))
+        input = to_contiguous(input).view(-1, input.size(2))
         target = to_contiguous(target).view(-1, 1)
-        output = - output.gather(1, target) * mask
+        output = - input.gather(1, target) * mask
+        rewards = Variable(output.view(batch_size, -1).data)
+        model.rewards = rewards
+        # model.rewards = (rewards - rewards.mean(dim=1, keepdim=True)) / (rewards.std(dim=1, keepdim=True) + 1e-5)
         output = torch.sum(output) / torch.sum(mask)
 
         return output
@@ -179,11 +186,47 @@ def attend(memory, h, trans_fn):
     return att
 
 
+def hard_attend(memory, h, trans_fn):
+    att = torch.cat([h, memory], 2)  # Bx25x68
+    att = trans_fn(att).squeeze()  # Bx25
+    weight = F.softmax(att, dim=1)  # Bx25
+    m = Categorical(weight)
+    action = m.sample()
+    model.saved_log_probs.append(m.log_prob(action))
+    # TODO use gather?
+    output = memory.data.new(memory.size(0), memory.size(2))  # Bx6
+    action = action.data
+    for i in range(output.size(0)):
+        output[i] = memory[i, action[i]].data
+    return Variable(output)
+
+
+def hard_attend2(memory, h, trans_fn, target_obj, is_training):
+    if is_training:
+        return target_obj.float()
+    mem_data = memory.data
+    mask = (mem_data[:,:,4] >= 1) & (mem_data[:, :, 5] >= 1) # Bx25
+    output = memory.data.new(memory.size(0), memory.size(2))  # Bx6
+    for i in range(output.size(0)):
+        output[i] = memory[i, torch.nonzero(mask[i])[0, 0]].data
+    return Variable(output)
+
+    # mask = mask.float() + 1e-5
+    # probs = mask / mask.sum(dim=1, keepdim=True)
+    # m = Categorical(probs)
+    # action = m.sample()
+    # output = memory.data.new(memory.size(0), memory.size(2))  # Bx6
+    # for i in range(output.size(0)):
+    #     output[i] = memory[i, action[i]].data
+    # return Variable(output)
+
+
 def dual_attend(h, memory1, memory2, trans_fn1, trans_fn2, trans_fn3, extra):
-    target_obj, ref_obj = extra
+    target_obj, ref_obj, is_training = extra
     h2 = torch.unsqueeze(h, 1)  # Bx1x64
     h2 = h2.repeat(1, 25, 1)  # Bx25x64
-    att1 = attend(memory1, h2, trans_fn1)
+    att1 = hard_attend2(memory1, h2, trans_fn1, target_obj, is_training)
+    # att1 = attend(memory1, h2, trans_fn1)
     att2 = attend(memory2, h2, trans_fn2)
     att3 = attend(memory2, h2, trans_fn3)
     # att = torch.cat([att1, att2], dim=1)  # Bx8
@@ -206,10 +249,13 @@ class InstAtt(nn.Module):
         self.att_lstm_cell = nn.LSTMCell(self.input_size + self.rnn_size, self.rnn_size)
         self.lang_lstm_cell = nn.LSTMCell(self.rnn_size * 2, self.rnn_size)
         self.fc_out = nn.Linear(self.rnn_size, self.vocab_size + 1)
-        self.fc_att1 = nn.Sequential(nn.Linear(self.rnn_size + 6, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
+        # self.fc_att1 = nn.Sequential(nn.Linear(self.rnn_size + 6, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
+        self.fc_att1 = None
         self.fc_att2 = nn.Sequential(nn.Linear(self.rnn_size + 4, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
         self.fc_att3 = nn.Sequential(nn.Linear(self.rnn_size + 4, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
         self.att_trans = nn.Sequential(nn.Linear(4+4+4, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, self.rnn_size))
+        self.saved_log_probs = []
+        self.rewards = None
 
     def forward(self, inst, prev_canvas, final_canvas, extra=None):
         # http://pytorch.org/docs/master/nn.html#torch.nn.LSTMCell
@@ -280,13 +326,27 @@ train_loader = get_shape2d_loader(split='train', batch_size=args.batch_size)
 val_loader = get_shape2d_loader(split='val', batch_size=50)
 assert train_loader.dataset.vocab_size == val_loader.dataset.vocab_size
 assert train_loader.dataset.max_seq_length == val_loader.dataset.max_seq_length
-val_loader_iter = iter(val_loader)
+# database = [d['current_instruction'] for d in train_loader.dataset.data]
+# matched = []
+# for d in tqdm(val_loader.dataset.data):
+#     if d['current_instruction'] in database:
+#         matched.append(database.index(d['current_instruction']))
+# print(len(matched))
+# dd = val_loader.dataset.data[0]
+# print(dd['next_object'])
+# sample = dd['current_instruction']
+# for i, d in enumerate(database):
+#     if d == sample:
+#         if(train_loader.dataset.data[i]['next_object'] == dd['next_object'] and train_loader.dataset.data[i]['ref_obj'] == dd['ref_obj']):
+#             print(i)
 
+val_loader_iter = iter(val_loader)
 # sample_loader = get_shape2d_loader(split='sample', batch_size=2)
 # print(len(sample_loader.dataset))
 
 model = InstAtt(train_loader.dataset.vocab_size, train_loader.dataset.max_seq_length)
 # model.load_state_dict(torch.load('models_topdown/model_20.pth'))
+# model.load_state_dict(torch.load('models_topdown_3att_att64_hardatt/model_13.pth'))
 model.cuda()
 loss_fn = LanguageModelCriterion()
 
@@ -303,7 +363,7 @@ def eval_sample():
     prev_canvas, inst, next_obj, final_canvas, ref_obj = data
     diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
     diff_canvas_objs = [train_loader.dataset.decode_canvas(diff_canvas.data[i]) for i in range(diff_canvas.size(0))]
-    samples = model.sample(prev_canvas, final_canvas, (next_obj, ref_obj))
+    samples = model.sample(prev_canvas, final_canvas, (next_obj, ref_obj, False))
     samples = decode_sequence(train_loader.dataset.ix_to_word, samples)
     for i in range(prev_canvas.size(0)):
         val_raw_data[i]['predicted_instruction'] = samples[i]
@@ -323,21 +383,28 @@ def train(epoch):
         data = [Variable(_, requires_grad=False).cuda() for _ in data[:-1]]
         prev_canvas, inst, next_obj, final_canvas, ref_obj = data
         optimizer.zero_grad()
-        loss = loss_fn(model(inst, prev_canvas, final_canvas, (next_obj, ref_obj)), inst[:, 1:])
-        loss.backward()
+        loss = loss_fn(model(inst, prev_canvas, final_canvas, (next_obj, ref_obj, True)), inst[:, 1:])
+        policy_loss = 0
+        for i in range(len(model.saved_log_probs)):
+            policy_loss += (-model.saved_log_probs[i] * model.rewards[:, i]).sum()
+        (loss + policy_loss).backward()
         clip_gradient(optimizer, 0.1)
         optimizer.step()
+        del model.saved_log_probs[:]
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f})'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.data[0]))
-    torch.save(model.state_dict(), 'models_topdown_3att_att64/model_{}.pth'.format(epoch))
-    torch.save(optimizer.state_dict(), 'models_topdown_3att_att64/optimizer_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'models_topdown_3att_att64_hardatt/model_{}.pth'.format(epoch))
+    # torch.save(optimizer.state_dict(), 'models_topdown_3att_att64_hardatt/optimizer_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'models_topdown_3att_att64_hardatt_diff/model_{}.pth'.format(epoch))
+    torch.save(optimizer.state_dict(), 'models_topdown_3att_att64_hardatt_diff/optimizer_{}.pth'.format(epoch))
 
 
 if __name__ == '__main__':
     for epoch in range(1, args.epochs + 1):
         eval_sample()
+        del model.saved_log_probs[:]
         train(epoch)
 
 
