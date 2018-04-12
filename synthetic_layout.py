@@ -28,7 +28,7 @@ relative_loc_dict = {
     'top-left-of': lambda row, col: (row - 1, col - 1),
     'top-right-of': lambda row, col: (row - 1, col + 1),
     'bottom-left-of': lambda row, col: (row + 1, col - 1),
-    'bottom-right-of': lambda row, col: (row + 1, col - 1)
+    'bottom-right-of': lambda row, col: (row + 1, col + 1)
 }
 
 colors = ['red', 'green', 'blue']
