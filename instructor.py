@@ -197,7 +197,8 @@ class InstAtt(nn.Module):
         super().__init__()
         self.vocab_size = vocab_size
         self.max_seq_length = max_seq_length
-        self.rnn_size = 64
+        self.rnn_size = 128
+        self.att_hidden_size = 64
         self.input_size = 64
         # https://github.com/ruotianluo/ImageCaptioning.pytorch/blob/master/models/AttModel.py#L43
         self.embed = nn.Embedding(vocab_size + 1, self.input_size)
@@ -205,11 +206,10 @@ class InstAtt(nn.Module):
         self.att_lstm_cell = nn.LSTMCell(self.input_size + self.rnn_size, self.rnn_size)
         self.lang_lstm_cell = nn.LSTMCell(self.rnn_size * 2, self.rnn_size)
         self.fc_out = nn.Linear(self.rnn_size, self.vocab_size + 1)
-        self.fc_att1 = nn.Sequential(nn.Linear(self.rnn_size + 6, 32), nn.ReLU(), nn.Linear(32, 1))
-        self.fc_att2 = nn.Sequential(nn.Linear(self.rnn_size + 4, 32), nn.ReLU(), nn.Linear(32, 1))
-        self.fc_att3 = nn.Sequential(nn.Linear(self.rnn_size + 4, 32), nn.ReLU(), nn.Linear(32, 1))
-        # self.att_trans = nn.Linear(8, self.rnn_size)
-        self.att_trans = nn.Sequential(nn.Linear(4+4+4, 32), nn.ReLU(), nn.Linear(32, self.rnn_size))
+        self.fc_att1 = nn.Sequential(nn.Linear(self.rnn_size + 6, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
+        self.fc_att2 = nn.Sequential(nn.Linear(self.rnn_size + 4, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
+        self.fc_att3 = nn.Sequential(nn.Linear(self.rnn_size + 4, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, 1))
+        self.att_trans = nn.Sequential(nn.Linear(4+4+4, self.att_hidden_size), nn.ReLU(), nn.Linear(self.att_hidden_size, self.rnn_size))
 
     def forward(self, inst, prev_canvas, final_canvas, extra=None):
         # http://pytorch.org/docs/master/nn.html#torch.nn.LSTMCell
@@ -331,8 +331,8 @@ def train(epoch):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f})'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.data[0]))
-    torch.save(model.state_dict(), 'models_topdown_3att/model_{}.pth'.format(epoch))
-    torch.save(optimizer.state_dict(), 'models_topdown_3att/optimizer_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'models_topdown_3att_att64/model_{}.pth'.format(epoch))
+    torch.save(optimizer.state_dict(), 'models_topdown_3att_att64/optimizer_{}.pth'.format(epoch))
 
 
 if __name__ == '__main__':
