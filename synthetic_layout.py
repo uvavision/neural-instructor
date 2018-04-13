@@ -6,6 +6,7 @@ import json
 from tqdm import tqdm
 from utils import get_hashcode
 from string import Template
+import re
 
 from const import *
 
@@ -42,21 +43,38 @@ colors = ['red', 'green', 'blue']
 shapes = ['square', 'circle', 'triangle']
 
 
-ADD_TEMPLATE = ["add a $obj $abs_loc $rel_loc $obj_ref",
-                "now place a $obj $abs_loc $rel_loc $obj_ref"]
+def xs(o):
+    if o is None:
+        return ''
+    return str(o)
 
-DELETE_TEMPLATE = ["", ""]
 
-MOVE_TEMPLATE = ["", ""]
-
-DICT_TEMPLATES = {ADD: ADD_TEMPLATE, DELETE: DELETE_TEMPLATE,
-                  MOVE: MOVE_TEMPLATE}
-
-def template2text(act, t_obj, t_abs_loc="", t_rel_loc="", t_obj_ref=""):
+def tmpl2txt_act(act, t_obj, t_loc_abs="", t_loc_rel=""):
     tmpl = random.choice(DICT_TEMPLATES[act])
     s = Template(tmpl)
-    text = s.substitute(obj=t_obj, abs_loc=t_abs_loc, rel_loc=t_rel_loc)
+    text = s.substitute(obj=t_obj, loc_abs=t_loc_abs, rel_loc=t_loc_rel)
+    return re.sub(' +', ' ', text)  # remove duplicated spaces
+
+
+def tmpl2txt_loc(loc_abs, loc_rel, obj_ref, mode_loc=None):
+    if not mode_loc:
+        mode_loc = random.choice(MODES_LOC)
+    tmpl = random.choice(DICT_TEMPLATES[mode_loc])
+    s = Template(tmpl)
+    text = ''
+    if mode_loc == LOC_ABS and loc_abs:
+        text = s.substitute(loc_abs)
+    if mode_loc == LOC_REL and loc_rel and obj_ref:
+        text = s.substitute(loc_rel)
     return text
+
+
+def tmpl2txt_obj(color, shape, loc_abs, loc_ref, obj_ref, mode_loc=None):
+    tmpl = "the $color $shape one $loc_abs $loc_ref"
+    s = Template(tmpl)
+    text = s.substitute(xs(color), xs(shape))
+    text += ' ' + tmpl2txt_loc(loc_abs, loc_rel, obj_ref, mode_loc)
+    return re.sub(' +', ' ', text)
 
 
 def get_rel_loc(obj1, obj2):
@@ -228,17 +246,19 @@ class Canvas:
             return self.delete(obj_from) and self.add(obj_add)
         return STATUS_FAILED
 
-    def get_ref_obj_features(self, obj):
-        # TODO: get reference to an object, mode as FULL or MIN
-        # default_key_feature = (obj.color, obj.shape)
-        # lst = [default_key_feature]
-        # if default_key_feature in self.d_feature_id:
-        #     return lst
+    def get_min_features_obj_ref(self, obj, mode_ref=None):
         lst = []
-        if obj.color not in self.d_feature_id:
+        color = shape = loc_abs = loc_rel = obj_ref = None
+        if obj.color in self.d_feature_id and len(self.d_feature_id[obj.color]) == 1:
             lst.append(obj.color)
-        if obj.shape not in self.d_feature_id:
+        if obj.shape in self.d_feature_id and len(self.d_feature_id[obj.shape]) == 1:
             lst.append(obj.shape)
+        if (obj.row, obj.col) in DICT_LOC_ABS2NAME:
+            lst.append(DICT_LOC_ABS2NAME(obj.row, obj.col))
+        if obj.id_ in d_spatical_rel:
+            obj_ref_id, loc_rel = random.choice(list(d_spatical_rel[obj.id_].items()))
+            obj_ref = self.d_id_obj[obj_ref_id]
+            lst.append((loc_ref, obj_ref)
         return lst
 
     def get_next_action(self):
@@ -469,23 +489,23 @@ def construct_next_instruction(canvas):
     return {'add': get_add_inst, 'remove': get_remove_inst, 'move': get_move_inst}[action](canvas)
 
 
-def get_add_activity(canvas, mode_style=SINGLE, mode_loc=None):
+def get_add_activity(canvas, mode_loc=None, mode_style=SINGLE):
     if canvas.size() == 0:
         mode_loc = LOC_ABS
-    if mode_loc == None:
-        mode_loc = random.choice(MODE_LOCS)
+    if mode_loc is None:
+        mode_loc = random.choice(MODES_LOC)
     obj_new = obj_ref = loc_abs = loc_rel = None
     if mode_loc == LOC_ABS:
         abs_loc, row, col = sample_abs_loc(canvas)
     if mode_loc == LOC_REL:
         obj_rel, loc_rel, row, col = sample_relative_loc(canvas)
     if mode_style == SINGLE:
-        obj_new = Object(random.choice(colors), random.choice(shapes), action_row, action_col)
-        return (obj_new, obj_ref, loc_abs, loc_rel)
+        obj_new = Object(random.choice(COLORS), random.choice(SHAPES), action_row, action_col)
+        return (obj_new, loc_abs, obj_ref, loc_rel)
     elif mode_style == PATTERN:
-        color = random.choice(colors)
-        shape = random.choice(shapes)
-        style = random.choice(['row', 'column'])
+        color = random.choice(COLORS)
+        shape = random.choice(SHAPES)
+        style = random.choice(PATTERN_STYLE)
         if style == 'row':
             obj1 = Object(color, shape, row, col - 1)
             obj2 = Object(color, shape, row, col)
@@ -494,16 +514,16 @@ def get_add_activity(canvas, mode_style=SINGLE, mode_loc=None):
             obj1 = Object(color, shape, row - 1, col)
             obj2 = Object(color, shape, row, col)
             obj3 = Object(color, shape, row + 1, col)
-        return ([obj1, obj2, obj3], obj_ref, loc_abs, loc_rel)
+        return ([obj1, obj2, obj3], loc_abs, obj_ref, loc_rel)
     return None
 
 
-def get_delete_activity(canvas, mode_style=SINGLE, mode_loc=None):
+def get_delete_activity(canvas, mode_loc=None, mode_style=SINGLE):
     assert len(canvas.objects) > 0
     if canvas.size() == 1:
         mode_loc = LOC_ABS
     if not mode_loc:
-        mode_loc = random.choice(MODE_LOCS)
+        mode_loc = random.choice(MODES_LOC)
     obj_del = obj_rel = loc_abs = loc_rel = None
     if mode_loc == LOC_ABS:
         loc_abs, row, col = sample_abs_loc(canvas)
@@ -515,11 +535,11 @@ def get_delete_activity(canvas, mode_style=SINGLE, mode_loc=None):
     # if target obj is not valid or target obj is the same with reference obj
         if not obj_del or (obj_rel and obj_del and obj_rel == obj_del):
             continue
-        return (obj_del, obj_ref, loc_abs, loc_rel)
+        return (obj_del, loc_abs, obj_ref, loc_rel)
     return None
 
 
-def get_move_activity(canvas, mode_style=SINGLE, mode_loc=None):
+def get_move_activity(canvas, mode_loc=None, mode_style=SINGLE):
     assert len(canvas.objects) > 0
     del_activity = get_delete_activity(canvas, mode_loc)
     obj_from = del_activity[0]
@@ -530,7 +550,6 @@ def get_move_activity(canvas, mode_style=SINGLE, mode_loc=None):
         obj_to = add_activity[0]
     add_activity[0] = Object(obj_from.color, obj_from.shape, obj_to.col, obj_to.row)
     return del_activity, add_activity
-
 
 
 if __name__ == '__main__':
