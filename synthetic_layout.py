@@ -52,7 +52,7 @@ def xs(o):
 def tmpl2txt_act(act, t_obj, t_loc_abs="", t_loc_rel=""):
     tmpl = random.choice(DICT_TEMPLATES[act])
     s = Template(tmpl)
-    text = s.substitute(obj=t_obj, loc_abs=t_loc_abs, rel_loc=t_loc_rel)
+    text = s.substitute(obj=t_obj, loc_abs=t_loc_abs, loc_rel=t_loc_rel)
     return re.sub(' +', ' ', text)  # remove duplicated spaces
 
 
@@ -63,16 +63,18 @@ def tmpl2txt_loc(loc_abs, loc_rel, obj_ref, mode_loc=None):
     s = Template(tmpl)
     text = ''
     if mode_loc == LOC_ABS and loc_abs:
-        text = s.substitute(loc_abs)
+        print(mode_loc, loc_abs)
+        print(tmpl)
+        text = s.substitute(loc_abs=loc_abs)
     if mode_loc == LOC_REL and loc_rel and obj_ref:
-        text = s.substitute(loc_rel)
+        text = s.substitute(loc_rel=loc_rel, obj_ref=obj_ref)
     return text
 
 
-def tmpl2txt_obj(color, shape, loc_abs, loc_ref, obj_ref, mode_loc=None):
-    tmpl = "the $color $shape one $loc_abs $loc_ref"
+def tmpl2txt_obj(color, shape, loc_abs, loc_rel, obj_ref, mode_loc=None):
+    tmpl = "the $color $shape object "
     s = Template(tmpl)
-    text = s.substitute(xs(color), xs(shape))
+    text = s.substitute(color=xs(color), shape=xs(shape))
     text += ' ' + tmpl2txt_loc(loc_abs, loc_rel, obj_ref, mode_loc)
     return re.sub(' +', ' ', text)
 
@@ -80,8 +82,8 @@ def tmpl2txt_obj(color, shape, loc_abs, loc_ref, obj_ref, mode_loc=None):
 def get_rel_loc(obj1, obj2):
     del_c = obj1.col - obj2.col
     del_r = obj1.row - obj2.row
-    if (del_c, del_r) in DICT_DEL_REL_LOC:
-        return DICT_DEL_REL_LOC[(del_c, del_r)]
+    if (del_c, del_r) in DICT_LOC_DELTA2NAME:
+        return DICT_LOC_DELTA2NAME[(del_c, del_r)]
     return None
 
 
@@ -93,6 +95,10 @@ class Object:
         self.col = col
         self.identify_status = 'color-shape-location'
         self.id_ = self.get_id()
+
+    def __str__(self):
+        return 'color: {}; shape: {}; row: {}; col: {}'.format(self.color,
+                self.shape, self.row, self.col)
 
     def get_id(self):
         id_ = get_hashcode([self.color, self.shape, self.row, self.col])
@@ -116,12 +122,12 @@ class Canvas:
         self.d_id_obj = {}
         self.d_feature_id = defaultdict(list)  # key (color, shape)
         self.d_id_ref_feature = defaultdict(list)
-        self.d_spatical_rel = defaultdict(dict)
+        self.d_id_relloc = defaultdict(dict)
         self.d_grid_state = OrderedDict()  # currently not maintain all history
         self.grid_size = grid_size
 
-    def size():
-        return len(d_id_obj)
+    def size(self):
+        return len(self.d_id_obj)
 
     def get_ref_obj(self):
         # randomly select an object identified by color-shape or abs location as reference
@@ -179,23 +185,23 @@ class Canvas:
         return STATE_EMPTY
 
     def update_spatial_ref(self, obj_new):
-        for id_, obj in self.d_id_obj:
+        for id_, obj in self.d_id_obj.items():
             rel = get_rel_loc(obj, obj_new)
             if rel:
-                self.d_spatical_rel[obj.id_][obj_new.id_] = rel
+                self.d_id_relloc[obj.id_][obj_new.id_] = rel
             rel = get_rel_loc(obj_new, obj)
             if rel:
-                self.d_spatical_rel[obj_new.id_][obj.id_] = rel
+                self.d_id_relloc[obj_new.id_][obj.id_] = rel
 
     def update_ref_obj_features(self, obj_rm):  # already removed
         if (obj_rm.color, obj_rm.shape) in self.d_feature_id:
             if len(self.d_feature_id) == 1:
                 id_ = self.d_feature_id[(obj_rm.color, obj_rm.shape)]
-                features = self.get_ref_obj_features(self.d_id_obj[id_])
+                features = self.get_features_obj_ref(self.d_id_obj[id_])
                 self.d_id_ref_feature[id_] = features
 
     def is_action_viable(self, obj, action):
-        if not (0 <= self.obj.row <= self.grid_size and 0 <= self.obj.col <= self.grid_size):
+        if not (0 <= obj.row <= self.grid_size and 0 <= obj.col <= self.grid_size):
             return False
         if action == ADD:
             state = self.get_state_by_coordinates(obj)
@@ -209,14 +215,14 @@ class Canvas:
         return False
 
     def add(self, obj):
-        # TODO: update "self.objects" if necessary
-        if is_action_viable(obj, ADD):
+        if self.is_action_viable(obj, ADD):
+            print('@@@ is_action_viable?')
             self.d_id_obj[obj.id_] = obj
             self.d_grid_state[(obj.row, obj.col)] = obj.id_  # STATE_OCCU
             self.d_feature_id[(obj.color, obj.shape)].append(obj.id_)
             self.d_feature_id[obj.color].append(obj.id_)
             self.d_feature_id[obj.shape].append(obj.id_)
-            features = self.get_ref_obj_features(obj)
+            features = self.get_features_obj_ref(obj)
             self.d_id_ref_feature[obj.id_] = features
             self.update_spatial_ref(obj)
             return STATUS_SUCCESSFUL
@@ -224,18 +230,16 @@ class Canvas:
             return STATUS_FAILED
 
     def delete(self, obj):
-        # TODO: update "self.objects" if necessary
-        if is_action_viable(obj, DELETE):
+        if self.is_action_viable(obj, DELETE):
             del self.d_id_obj[obj.id_]
-            del self.d_spatical_rel[obj.id_]
-            self. = self.get_ref_obj_features(obj)
+            del self.d_id_relloc[obj.id_]
             self.d_feature_id[(obj.color, obj.shape)].remove(obj.id_)
             self.d_feature_id[obj.color].remove(obj.id_)
             self.d_feature_id[obj.shape].remove(obj.id_)
             self.update_ref_obj_features(obj)
-            for k, v in self.d_spatical_rel.items():
+            for k, v in self.d_id_relloc.items():
                 if obj.id_ in v:
-                    del self.d_spatical_rel[k][obj.id_]
+                    del self.d_id_relloc[k][obj.id_]
             self.d_grid_state[(obj.row, obj.col)] = STATE_EMPTY
             return STATUS_SUCCESSFUL
         return STATUS_FAILED
@@ -246,20 +250,26 @@ class Canvas:
             return self.delete(obj_from) and self.add(obj_add)
         return STATUS_FAILED
 
-    def get_min_features_obj_ref(self, obj, mode_ref=None):
+    def get_features_obj_ref(self, obj, mode_ref=None):
+        if mode_ref == MODE_FULL:
+            return (obj.color, obj.shape, None, None, None)
         lst = []
         color = shape = loc_abs = loc_rel = obj_ref = None
         if obj.color in self.d_feature_id and len(self.d_feature_id[obj.color]) == 1:
-            lst.append(obj.color)
+            lst.append((obj.color, None, None, None, None))
         if obj.shape in self.d_feature_id and len(self.d_feature_id[obj.shape]) == 1:
-            lst.append(obj.shape)
+            lst.append((None, obj.shape, None, None, None))
         if (obj.row, obj.col) in DICT_LOC_ABS2NAME:
-            lst.append(DICT_LOC_ABS2NAME(obj.row, obj.col))
-        if obj.id_ in d_spatical_rel:
-            obj_ref_id, loc_rel = random.choice(list(d_spatical_rel[obj.id_].items()))
+            loc_abs = DICT_LOC_ABS2NAME[(obj.row, obj.col)]
+            lst.append((None, None, loc_abs, None, None))
+        if obj.id_ in self.d_id_relloc:
+            obj_ref_id, loc_rel = random.choice(list(self.d_id_relloc[obj.id_].items()))
             obj_ref = self.d_id_obj[obj_ref_id]
-            lst.append((loc_ref, obj_ref)
-        return lst
+            lst.append((None, None, None, loc_rel, obj_ref))
+        print('@@@ features', lst)
+        if not lst:
+            return (obj.color, obj.shape, None, None, None)
+        return random.choice(lst)
 
     def get_next_action(self):
         # TODO: get next action based on latest painting
@@ -494,17 +504,17 @@ def get_add_activity(canvas, mode_loc=None, mode_style=SINGLE):
         mode_loc = LOC_ABS
     if mode_loc is None:
         mode_loc = random.choice(MODES_LOC)
-    obj_new = obj_ref = loc_abs = loc_rel = None
+    obj_new = obj_ref = loc_abs = loc_rel = row = col = None
+    color = random.choice(COLORS)
+    shape = random.choice(SHAPES)
     if mode_loc == LOC_ABS:
-        abs_loc, row, col = sample_abs_loc(canvas)
+        loc_abs, row, col = sample_abs_loc(canvas)
     if mode_loc == LOC_REL:
         obj_rel, loc_rel, row, col = sample_relative_loc(canvas)
     if mode_style == SINGLE:
-        obj_new = Object(random.choice(COLORS), random.choice(SHAPES), action_row, action_col)
+        obj_new = Object(color, shape, row, col)
         return (obj_new, loc_abs, obj_ref, loc_rel)
     elif mode_style == PATTERN:
-        color = random.choice(COLORS)
-        shape = random.choice(SHAPES)
         style = random.choice(PATTERN_STYLE)
         if style == 'row':
             obj1 = Object(color, shape, row, col - 1)
@@ -519,7 +529,7 @@ def get_add_activity(canvas, mode_loc=None, mode_style=SINGLE):
 
 
 def get_delete_activity(canvas, mode_loc=None, mode_style=SINGLE):
-    assert len(canvas.objects) > 0
+    assert len(canvas.d_id_obj) > 0
     if canvas.size() == 1:
         mode_loc = LOC_ABS
     if not mode_loc:
