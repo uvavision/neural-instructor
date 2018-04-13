@@ -1,3 +1,4 @@
+DOMAIN_2DSHAPE = '2Dshape'
 OTHER_ROLE = {'agent': 'user', 'user': 'agent'}
 # painter -- agent / instructor -- user
 
@@ -11,7 +12,7 @@ MODES_REF = [MODE_MIN, MODE_FULL]
 SINGLE = 'single'
 MULTI = 'multi'
 PATTERN = 'pattern'
-MODES_STYLE = [SINGLE, MULTI, PATTERN]
+MODES_STYLE = [SINGLE, PATTERN]
 
 PATTERN_STYLE = ['row', 'column']
 
