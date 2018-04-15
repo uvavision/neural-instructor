@@ -13,8 +13,6 @@ from const import *
 # os.environ['domain'] = '2Dshape'
 # from main import coll_chat
 
-MODE_LOCS = [LOC_ABS, LOC_REL]
-
 actions = ['add', 'remove', 'move']
 
 abs_loc_dict = {
@@ -63,8 +61,6 @@ def tmpl2txt_loc(loc_abs, loc_rel, obj_ref, mode_loc=None):
     s = Template(tmpl)
     text = ''
     if mode_loc == LOC_ABS and loc_abs:
-        print(mode_loc, loc_abs)
-        print(tmpl)
         text = s.substitute(loc_abs=loc_abs)
     if mode_loc == LOC_REL and loc_rel and obj_ref:
         text = s.substitute(loc_rel=loc_rel, obj_ref=obj_ref)
@@ -216,7 +212,6 @@ class Canvas:
 
     def add(self, obj):
         if self.is_action_viable(obj, ADD):
-            print('@@@ is_action_viable?')
             self.d_id_obj[obj.id_] = obj
             self.d_grid_state[(obj.row, obj.col)] = obj.id_  # STATE_OCCU
             self.d_feature_id[(obj.color, obj.shape)].append(obj.id_)
@@ -232,7 +227,8 @@ class Canvas:
     def delete(self, obj):
         if self.is_action_viable(obj, DELETE):
             del self.d_id_obj[obj.id_]
-            del self.d_id_relloc[obj.id_]
+            if obj.id_ in self.d_id_relloc:
+                del self.d_id_relloc[obj.id_]
             self.d_feature_id[(obj.color, obj.shape)].remove(obj.id_)
             self.d_feature_id[obj.color].remove(obj.id_)
             self.d_feature_id[obj.shape].remove(obj.id_)
@@ -266,7 +262,6 @@ class Canvas:
             obj_ref_id, loc_rel = random.choice(list(self.d_id_relloc[obj.id_].items()))
             obj_ref = self.d_id_obj[obj_ref_id]
             lst.append((None, None, None, loc_rel, obj_ref))
-        print('@@@ features', lst)
         if not lst:
             return (obj.color, obj.shape, None, None, None)
         return random.choice(lst)
@@ -499,67 +494,7 @@ def construct_next_instruction(canvas):
     return {'add': get_add_inst, 'remove': get_remove_inst, 'move': get_move_inst}[action](canvas)
 
 
-def get_add_activity(canvas, mode_loc=None, mode_style=SINGLE):
-    if canvas.size() == 0:
-        mode_loc = LOC_ABS
-    if mode_loc is None:
-        mode_loc = random.choice(MODES_LOC)
-    obj_new = obj_ref = loc_abs = loc_rel = row = col = None
-    color = random.choice(COLORS)
-    shape = random.choice(SHAPES)
-    if mode_loc == LOC_ABS:
-        loc_abs, row, col = sample_abs_loc(canvas)
-    if mode_loc == LOC_REL:
-        obj_rel, loc_rel, row, col = sample_relative_loc(canvas)
-    if mode_style == SINGLE:
-        obj_new = Object(color, shape, row, col)
-        return (obj_new, loc_abs, obj_ref, loc_rel)
-    elif mode_style == PATTERN:
-        style = random.choice(PATTERN_STYLE)
-        if style == 'row':
-            obj1 = Object(color, shape, row, col - 1)
-            obj2 = Object(color, shape, row, col)
-            obj3 = Object(color, shape, row, col + 1)
-        if style == 'column':
-            obj1 = Object(color, shape, row - 1, col)
-            obj2 = Object(color, shape, row, col)
-            obj3 = Object(color, shape, row + 1, col)
-        return ([obj1, obj2, obj3], loc_abs, obj_ref, loc_rel)
-    return None
 
-
-def get_delete_activity(canvas, mode_loc=None, mode_style=SINGLE):
-    assert len(canvas.d_id_obj) > 0
-    if canvas.size() == 1:
-        mode_loc = LOC_ABS
-    if not mode_loc:
-        mode_loc = random.choice(MODES_LOC)
-    obj_del = obj_rel = loc_abs = loc_rel = None
-    if mode_loc == LOC_ABS:
-        loc_abs, row, col = sample_abs_loc(canvas)
-    if mode_loc == LOC_REL:
-        obj_rel, loc_rel, row, col = sample_relative_loc(canvas)
-    for obj in canvas.objects:
-        if (row, col) == (obj.row, obj.col):
-            obj_del = obj
-    # if target obj is not valid or target obj is the same with reference obj
-        if not obj_del or (obj_rel and obj_del and obj_rel == obj_del):
-            continue
-        return (obj_del, loc_abs, obj_ref, loc_rel)
-    return None
-
-
-def get_move_activity(canvas, mode_loc=None, mode_style=SINGLE):
-    assert len(canvas.objects) > 0
-    del_activity = get_delete_activity(canvas, mode_loc)
-    obj_from = del_activity[0]
-    add_activity = get_add_activity(canvas, mode_style, mode_loc)
-    obj_to = add_activity[0]
-    while obj_from.row == obj_to.row and obj_from.col == obj_from.col:
-        add_activity = get_add_activity(canvas, mode_style, mode_loc)
-        obj_to = add_activity[0]
-    add_activity[0] = Object(obj_from.color, obj_from.shape, obj_to.col, obj_to.row)
-    return del_activity, add_activity
 
 
 if __name__ == '__main__':

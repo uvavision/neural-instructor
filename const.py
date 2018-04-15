@@ -61,7 +61,7 @@ DICT_LOC_DELTA2NAME = {
 TMPL_ADD = ["add $obj $loc_abs $loc_rel ",
             "now place $obj $loc_abs $loc_rel "]
 
-TMPL_DEL = ["", ""]
+TMPL_DEL = ["now remove $obj $loc_abs $loc_rel", "delete $obj $loc_abs $loc_rel"]
 
 TMPL_MV = ["", ""]
 
