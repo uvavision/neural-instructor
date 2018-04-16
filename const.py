@@ -29,7 +29,8 @@ STATES = [STATE_EMPTY, STATE_OCCU]
 STATUS_SUCCESSFUL = True
 STATUS_FAILED = False
 
-
+OBJ = 'object'
+OBJ_REF = 'object_reference'
 ADD = 'add'
 DELETE = 'delete'
 MOVE = 'move'
@@ -42,7 +43,11 @@ DICT_NAME2LOC_ABS = {
     'top-right': (0, GRID_SIZE - 1),
     'bottom-left': (GRID_SIZE - 1, 0),
     'bottom-right': (GRID_SIZE - 1, GRID_SIZE - 1),
-    'center': (GRID_SIZE // 2, GRID_SIZE // 2)
+    'center': (GRID_SIZE // 2, GRID_SIZE // 2),
+    'top-middle': (0, GRID_SIZE // 2),
+    'botton-middle': (GRID_SIZE - 1, GRID_SIZE // 2),
+    'left-middle': (GRID_SIZE // 2, 0),
+    'right-middle': (GRID_SIZE // 2, GRID_SIZE - 1)
 }
 
 DICT_LOC_ABS2NAME = {v: k for k, v in DICT_NAME2LOC_ABS.items()}
@@ -58,10 +63,10 @@ DICT_LOC_DELTA2NAME = {
     (-1, -1): 'bottom-right-of',
 }
 
-TMPL_ADD = ["add $obj $loc_abs $loc_rel ",
-            "now place $obj $loc_abs $loc_rel "]
+TMPL_ADD = ["add one $obj", #  $loc_abs $loc_rel
+            "now place a $obj"]
 
-TMPL_DEL = ["now remove $obj $loc_abs $loc_rel", "delete $obj $loc_abs $loc_rel"]
+TMPL_DEL = ["now remove the $obj from the canvas", "delete the $obj", "please get rid of the $obj"]
 
 TMPL_MV = ["", ""]
 
@@ -69,10 +74,14 @@ TMPL_LOC_ABS = ["at $loc_abs of the canvas"]
 
 TMPL_LOC_REL = ["at $loc_rel of the $obj_ref"]
 
-TMPL_OBJ_REF = ["the $color $shape $loc_abs $loc_ref"]
+TMPL_OBJ_REF = ["$color $shape at $loc_rel of the $loc_abs part of the canvas"]
+
+TMPL_OBJ = ["$color $shape object ", "$color $shape one "]
 
 DICT_TEMPLATES = {ADD: TMPL_ADD,
                   DELETE: TMPL_DEL,
                   MOVE: TMPL_MV,
+                  OBJ: TMPL_OBJ,
+                  OBJ_REF: TMPL_OBJ_REF,
                   LOC_ABS: TMPL_LOC_ABS,
                   LOC_REL: TMPL_LOC_REL}
