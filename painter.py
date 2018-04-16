@@ -83,91 +83,30 @@ class Shape2DPainterNet(nn.Module):
         self.hidden_size = 64
         self.fc_color = nn.Linear(self.inst_encoder.rnn_size, 3)
         self.fc_shape = nn.Linear(self.inst_encoder.rnn_size, 3)
-        self.fc_offset = nn.Linear(self.inst_encoder.rnn_size, 2)
-        # self.canvas_embed = nn.Linear(4, 64)
-        # self.fc_ref_obj = nn.Linear(64, 1)
-        # self.fc_ref_obj = nn.Sequential(nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, 1))
+        self.fc_abs_loc = nn.Linear(self.inst_encoder.rnn_size, 2)
+        self.fc_loc_route = nn.Sequential(nn.Linear(self.inst_encoder.rnn_size, 32), nn.ReLU(), nn.Linear(32, 2))
         self.fc_ref_obj = nn.Sequential(nn.Linear(68, 32), nn.ReLU(), nn.Linear(32, 1))
-        # self.fc_dir = nn.Linear(self.inst_encoder.rnn_size, 8)
-        # self.fc_row = nn.Linear(2 + self.canvas_encoder.embed_size, 1, bias=False)
-        # self.fc_col = nn.Linear(2 + self.canvas_encoder.embed_size, 1, bias=False)
-        # self.fc_row = nn.Linear(2, 1, bias=False)
-        # self.fc_col = nn.Linear(2, 1, bias=False)
-        # self.fc1 = nn.Linear(2 + self.canvas_encoder.embed_size, self.hidden_size)
+        self.fc_offset = nn.Linear(self.inst_encoder.rnn_size, 2)
+
+    def loc_relative_predict(self, inst_embedding, canvas):
+        offset = F.hardtanh(self.fc_offset(inst_embedding))  # Bx2
+        inst2 = torch.unsqueeze(inst_embedding, 1)  # Bx1x64
+        inst2 = inst2.repeat(1, 25, 1) # Bx25x64
+        att = torch.cat([inst2, canvas], 2) # Bx25x68
+        att = self.fc_ref_obj(att).squeeze() # Bx25
+        weight = F.softmax(att, dim=1)
+        ref_obj = torch.bmm(weight.unsqueeze(1), canvas).squeeze(1)
+        return ref_obj[:, 2:] + offset
 
     def forward(self, inst, prev_canvas, ref_obj, target_obj):
         inst_embedding = self.inst_encoder(inst) # Bx64
-        inst2 = torch.unsqueeze(inst_embedding, 1)  # Bx1x64
-        inst2 = inst2.repeat(1, 25, 1) # Bx25x64
-        # canvas_embedding = self.canvas_encoder(prev_canvas) # Bx25x16
-        ref_obj_e = torch.cat([inst2, prev_canvas], 2) # Bx25x68
-        # canvas_embedding = self.canvas_embed(prev_canvas)
-        # ref_obj_e = canvas_embedding + inst2
-        ref_obj_e = self.fc_ref_obj(ref_obj_e).squeeze() # Bx25
-        weight = F.softmax(ref_obj_e, dim=1)
-        ref_obj_predict = torch.bmm(weight.unsqueeze(1), prev_canvas).squeeze(1)
-        # ref_obj_out = F.log_softmax(ref_obj_e, dim=1)
-
-        # if self.use_mask:
-        #     mask = torch.zeros(canvas_embedding.size())
-        #     for i in range(ref_obj.data.size(0)):
-        #         # assert ref_obj[i].sum() > 0
-        #         mask[i][ref_obj.data[i][-2]*5+ref_obj.data[i][-1]].fill_(1)
-        #     mask = Variable(mask.cuda())
-        #     canvas_embedding = (canvas_embedding * mask).sum(dim=1)
-        # print(torch.abs(canvas_embedding.data - ref_obj.float().cuda()).sum())
-        offset_embedding = self.fc_offset(inst_embedding)
-        # offset_embedding = Variable((target_obj.data[:, 2:] - ref_obj[:, 2:].cuda()).float())
-        # offset_embedding =
-        offset_embedding = F.hardtanh(offset_embedding)
-        # dir_embedding = F.softmax(self.fc_dir(inst_embedding))
-        # embedding = torch.cat([offset_embedding, canvas_embedding], 1)  # Bx25x(64+16)
-        # embedding = offset_embedding + canvas_embedding
-
-        # global train_loader
-        # ref_obj_target = ref_obj[:, -2] * 5 + ref_obj[:, -1]
-        # for ix in range(prev_canvas.size(0)):
-        #     inst_str = ' '.join(map(train_loader.dataset.ix_to_word.get, list(inst[ix].data)))
-        #     print(inst_str)
-        #     ref_obj = prev_canvas.data[ix, ref_obj_target.data[ix]]
-        #     ref_obj_color = train_loader.dataset.num2color[ref_obj[0]]
-        #     ref_obj_shape = train_loader.dataset.num2shape[ref_obj[1]]
-        #     print("ref obj: {} {} {} {}".format(ref_obj_color, ref_obj_shape, ref_obj[2], ref_obj[3]))
-        #     print(inst[ix].data)
-        #     print("\n")
-            # print("{} {}".format(canvas_embedding.data[ix][-2], canvas_embedding.data[ix][-1]))
-            # print("{} {}".format(target_obj.data[ix][-2], target_obj.data[ix][-1]))
-
-
-        # mask = torch.zeros(embedding.size())
-        # for i in range(ref_obj.size(0)):
-        #     if ref_obj[i].sum() > 0:
-        #         mask[i][ref_obj[i][-1]].fill_(1)
-        # mask = Variable(mask.cuda())
-        # embedding = embedding * mask
-        # embedding = torch.cat([inst_embedding, canvas_embedding], 1)
-        # x = F.relu(self.fc1(embedding)) # Bx25x32
-        # # mask based on ref_obj
-        # mask = torch.zeros(x.size())
-        # for i in range(ref_obj.size(0)):
-        #     if ref_obj[i].sum() > 0:
-        #         mask[i][ref_obj[i][-1]].fill_(1)
-        # mask = Variable(mask.cuda())
-        # x = x * mask
-        # x = F.dropout(x, training=self.training)
-        # if self.use_canvas_data:
-        #     x = x.sum(dim=1) # Bx32
         color_out = F.log_softmax(self.fc_color(inst_embedding), dim=1)
         shape_out = F.log_softmax(self.fc_shape(inst_embedding), dim=1)
-        # row_out = F.log_softmax(self.fc_row(embedding), dim=1)
-        # col_out = F.log_softmax(self.fc_col(embedding), dim=1)
-        # row_out = self.fc_row(embedding)
-        # col_out = self.fc_col(embedding)
-        # row_offset_out = offset_embedding[:, 0]
-        # col_offset_out = offset_embedding[:, 1]
-        row_out = ref_obj_predict[:, 2] + offset_embedding[:, 0]
-        col_out = ref_obj_predict[:, 3] + offset_embedding[:, 1]
-        return color_out, shape_out, row_out, col_out
+        loc_abs = self.fc_abs_loc(inst_embedding)
+        loc_relative = self.loc_relative_predict(inst_embedding, prev_canvas)
+        route = F.softmax(self.fc_loc_route(inst_embedding), dim=1)
+        loc_out = loc_abs * route[:, 0:1] + loc_relative * route[:, 1:2]
+        return color_out, shape_out, loc_out[:, 0], loc_out[:, 1]
 
 
 class Shape2DObjCriterion(nn.Module):
