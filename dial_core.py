@@ -1,8 +1,7 @@
 from const import *
 import random
 from collections import OrderedDict
-from synthetic_layout import (Object, Canvas, sample_abs_loc,
-                              sample_relative_loc,
+from synthetic_layout import (Object, Canvas,
                               tmpl2txt_act, tmpl2txt_loc, tmpl2txt_obj)
 
 
@@ -30,22 +29,34 @@ class Agent(object):
         self.loc_abs = None
         self.loc_rel = None
         self.obj_ref = None
+        self.message = None
         self.mode_loc = None
         self.mode_style = None
         self.mode_ref = None
+        self.is_viable = None
 
-    def get_add_activity(self):
+    def reset(self):
+        self.objs = None
+        self.obj = None
+        self.loc_abs = None
+        self.loc_rel = None
+        self.obj_ref = None
+        self.message = None
+
+    def get_add_activity(self, select_empty=True, is_viable=True):
         if self.canvas.size() == 0:
-            mode_loc = LOC_ABS
-        if mode_loc is None:
-            mode_loc = random.choice(MODES_LOC)
+            self.mode_loc = LOC_ABS
+        else:
+            self.mode_loc = LOC_REL
+        if self.mode_loc is None:
+            self.mode_loc = random.choice(MODES_LOC)
         row = col = None
         color = random.choice(COLORS)
         shape = random.choice(SHAPES)
         if self.mode_loc == LOC_ABS:
-            self.loc_abs, row, col = sample_abs_loc(self.canvas)
+            self.loc_abs, row, col = self.canvas.select_loc_abs(select_empty, is_viable)
         if self.mode_loc == LOC_REL:
-            self.obj_ref, self.loc_rel, row, col = sample_relative_loc(self.canvas)
+            self.obj_ref, row, col, self.loc_rel = self.canvas.select_loc_rel(select_empty, is_viable)
         if self.mode_style == SINGLE:
             self.obj = Object(color, shape, row, col)
         elif self.mode_style == PATTERN:
@@ -60,24 +71,24 @@ class Agent(object):
                 obj3 = Object(color, shape, row + 1, col)
             self.objs = [obj1, obj2, obj3]
 
-    def get_delete_activity(self):
+    def get_delete_activity(self, select_empty=False):
         assert self.canvas.size() > 0
         if self.canvas.size() == 1:
             self.obj = list(self.canvas.d_id_obj.values())[0]
-            self.loc_abs = DICT_LOC_ABS2NAME[(self.obj.row, self.obj.col)]
+            return
         if not self.mode_loc:
             self.mode_loc = random.choice(MODES_LOC)
         row = col = None
-        if self.mode_loc == LOC_ABS:
-            self.loc_abs, row, col = sample_abs_loc(self.canvas)
-        if self.mode_loc == LOC_REL:
-            self.obj_ref, self.loc_rel, row, col = sample_relative_loc(self.canvas)
-        for id_, obj in self.canvas.d_id_obj.items():
-            if (row, col) == (obj.row, obj.col):
-                self.obj = obj
-        # if target obj is not valid or target obj is the same with reference obj
-            if not self.obj or (self.obj_ref and self.obj and self.obj_ref == self.obj):
-                continue
+        self.loc_abs, row, col = self.canvas.select_loc_abs(select_empty, self.is_viable)
+        if not row:
+            self.obj_ref, self.loc_rel, row, col = self.canvas.select_loc_rel(select_empty, self.is_viable)
+        if row and col:
+            for id_, obj in self.canvas.d_id_obj.items():
+                if (row, col) == (obj.row, obj.col):
+                    self.obj = obj
+                    break
+        if not self.obj:
+            self.obj = random.choice(list(self.canvas.d_id_obj.values()))
 
     def get_move_activity(self):
         assert self.canvas.size() > 0
@@ -90,7 +101,7 @@ class Agent(object):
             obj_to = self.obj
         # Object(obj_from.color, obj_from.shape, obj_to.col, obj_to.row)
 
-    def get_activity(self, act=ADD):
+    def get_activity(self, act):
         self.act = act
         if not self.mode_style:
             self.mode_style = random.choice(MODES_STYLE)
@@ -100,11 +111,13 @@ class Agent(object):
         self.mode_loc = LOC_ABS
         if act == ADD:
             self.get_add_activity()
-            message = self.generate_act_message_by_tmpl()
+            self.mode_ref = MODE_FULL
+            self.message = self.generate_act_message_by_tmpl()
             self.canvas.add(self.obj)
         if act == DELETE:
             self.get_delete_activity()
-            message = self.generate_act_message_by_tmpl()
+            self.mode_ref = MODE_MIN
+            self.message = self.generate_act_message_by_tmpl()
             self.canvas.delete(self.obj)
         if act == MOVE:
             self.get_move_activity()
@@ -117,15 +130,14 @@ class Agent(object):
             self.mode_ref = random.choice(MODES_REF)
         lst = []
         t_loc_abs = t_loc_rel = ''
-        if self.loc_abs:
-            t_loc_abs = tmpl2txt_loc(self.loc_abs, self.loc_rel, self.obj_ref, LOC_ABS)
-        if self.loc_rel and self.obj_ref:
-            t_loc_rel = tmpl2txt_loc(self.loc_abs, self.loc_rel, self.obj_ref, LOC_REL)
+        # if self.loc_abs:
+        #     t_loc_abs = self.canvas.get_loc_desc(self.loc_abs, self.loc_rel, self.obj_ref)
+        # if self.loc_rel and self.obj_ref:
+        #     t_loc_rel = self.canvas.get_loc_desc(self.loc_abs, self.loc_rel, self.obj_ref)
         if act == ADD:
-            t_obj = tmpl2txt_obj(self.obj.color, self.obj.shape, None, None, None)
+            t_obj = self.canvas.get_obj_desc(self.obj, MODE_FULL)
         else:
-            color, shape, loc_abs_o, loc_rel_o, obj_ref_o = self.canvas.get_features_obj_ref(self.obj)
-            t_obj = tmpl2txt_obj(color, shape, loc_abs_o, loc_rel_o, obj_ref_o)
+            t_obj = self.canvas.get_obj_desc(self.obj, self.mode_ref)
         message = tmpl2txt_act(self.act, t_obj, t_loc_abs, t_loc_rel)
         return message
 
@@ -137,9 +149,12 @@ class Agent(object):
 
 if __name__ == '__main__':
     agent = Agent()
-    lst_activity = [ADD, DELETE]
-    for act in lst_activity:
-        agent.get_activity(act)
-        message = agent.generate_act_message_by_tmpl()
-        print(agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
-        print("###", message)
+    agent.mode_loc = LOC_REL
+    agent.is_viable = True
+    for i in range(100):
+        lst_activity = [ADD, ADD, DELETE, ADD, DELETE, DELETE]
+        for act in lst_activity:
+            agent.get_activity(act)
+            # print(agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
+            print("###", agent.message)
+            agent.reset()
