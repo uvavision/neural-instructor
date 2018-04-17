@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
+from torch.distributions import Categorical
 from Shape2D import get_shape2d_loader
 import random
 from utils import clip_gradient, adjust_lr
@@ -87,6 +88,9 @@ class Shape2DPainterNet(nn.Module):
         self.fc_loc_route = nn.Sequential(nn.Linear(self.inst_encoder.rnn_size, 32), nn.ReLU(), nn.Linear(32, 2))
         self.fc_ref_obj = nn.Sequential(nn.Linear(68, 32), nn.ReLU(), nn.Linear(32, 1))
         self.fc_offset = nn.Linear(self.inst_encoder.rnn_size, 2)
+        self.rewards = None
+        self.saved_log_probs = None
+        self.running_baseline = 0
 
     def loc_relative_predict(self, inst_embedding, canvas):
         offset = F.hardtanh(self.fc_offset(inst_embedding))  # Bx2
@@ -104,8 +108,15 @@ class Shape2DPainterNet(nn.Module):
         shape_out = F.log_softmax(self.fc_shape(inst_embedding), dim=1)
         loc_abs = self.fc_abs_loc(inst_embedding)
         loc_relative = self.loc_relative_predict(inst_embedding, prev_canvas)
-        route = F.softmax(self.fc_loc_route(inst_embedding), dim=1)
-        loc_out = loc_abs * route[:, 0:1] + loc_relative * route[:, 1:2]
+        weight = F.softmax(self.fc_loc_route(inst_embedding), dim=1)
+        m = Categorical(weight)
+        actions = m.sample()
+        # print((torch.eq((ref_obj.sum(dim=1) < 0).long(), actions).sum().float() / ref_obj.size(0)).data[0])
+        model.saved_log_probs = m.log_prob(actions)
+        actions = actions.float()
+        # # loc_out = loc_abs * weight[:, 0:1] + loc_relative * weight[:, 1:2]
+        # actions = (ref_obj.sum(dim=1) < 0).float()
+        loc_out = loc_abs * actions.unsqueeze(1) + loc_relative * (1 - actions).unsqueeze(1)
         return color_out, shape_out, loc_out[:, 0], loc_out[:, 1]
 
 
@@ -121,6 +132,14 @@ class Shape2DObjCriterion(nn.Module):
                F.nll_loss(shape_out, shape_target) + \
                F.l1_loss(row_out, target_obj[:, 2].float()) + \
                F.l1_loss(col_out, target_obj[:, 3].float())
+        # loss = F.nll_loss(color_out, color_target) + \
+        #        F.nll_loss(shape_out, shape_target)
+        rewards = F.l1_loss(row_out, target_obj[:, 2].float(), reduce=False).data + \
+                  F.l1_loss(col_out, target_obj[:, 3].float(), reduce=False).data
+        rewards = - rewards
+        # model.rewards = rewards - model.running_baseline
+        # model.running_baseline = 0.9 * model.running_baseline + 0.1 * rewards.mean()
+        model.rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-6)
         return loss
 
 
@@ -146,17 +165,22 @@ def compute_accuracy(model_out, target_obj, ref_obj):
     return color_accuracy, shape_accuracy, row_accuracy.data[0], col_accuracy.data[0]
 
 
-train_loader = get_shape2d_loader(split='train', batch_size=args.batch_size)
+train_loader = get_shape2d_loader(split='val', batch_size=args.batch_size)
 test_loader = get_shape2d_loader(split='val', batch_size=args.batch_size)
 assert train_loader.dataset.vocab_size == test_loader.dataset.vocab_size
 assert train_loader.dataset.max_seq_length == test_loader.dataset.max_seq_length
 
 model = Shape2DPainterNet(train_loader.dataset.vocab_size)
+model.load_state_dict(torch.load('painter-models-trainset/model_20.pth'))
 model.cuda()
 loss_fn = Shape2DObjCriterion()
 
+# model_fc_loc_route = nn.Sequential(nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, 2))
+# model_fc_loc_route.cuda()
+
 # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0)
+# optimizer = optim.Adam(model_fc_loc_route.parameters(), lr=args.lr, weight_decay=0)
 
 
 def train(epoch):
@@ -182,7 +206,10 @@ def train(epoch):
         optimizer.zero_grad()
         output = model(inst, prev_canvas, ref_obj, next_obj)
         loss = loss_fn(output, next_obj, ref_obj)
-        loss.backward()
+        policy_loss = (-model.saved_log_probs * Variable(model.rewards)).sum()
+        # policy_loss.backward()
+        (loss + policy_loss).backward()
+        # loss.backward()
         clip_gradient(optimizer, 0.1)
         optimizer.step()
         color_accuracy, shape_accuracy, row_accuracy, col_accuray = compute_accuracy(output, next_obj, ref_obj)
@@ -216,4 +243,6 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
+    torch.save(model.state_dict(), 'painter-models_running_baseline/model_{}.pth'.format(epoch))
+    # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
     # model_test()
