@@ -139,7 +139,8 @@ class Shape2DObjCriterion(nn.Module):
         rewards = - rewards
         # model.rewards = rewards - model.running_baseline
         # model.running_baseline = 0.9 * model.running_baseline + 0.1 * rewards.mean()
-        model.rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-6)
+        # model.rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-6)
+        model.rewards = (rewards - rewards.mean())
         return loss
 
 
@@ -171,7 +172,7 @@ assert train_loader.dataset.vocab_size == test_loader.dataset.vocab_size
 assert train_loader.dataset.max_seq_length == test_loader.dataset.max_seq_length
 
 model = Shape2DPainterNet(train_loader.dataset.vocab_size)
-model.load_state_dict(torch.load('painter-models-trainset/model_20.pth'))
+model.load_state_dict(torch.load('painter-models_simple_mean/model_20.pth'))
 model.cuda()
 loss_fn = Shape2DObjCriterion()
 
@@ -243,6 +244,6 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    torch.save(model.state_dict(), 'painter-models_running_baseline/model_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'painter-models_simple_mean/model_{}.pth'.format(epoch))
     # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
     # model_test()
