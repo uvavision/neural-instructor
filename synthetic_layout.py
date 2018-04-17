@@ -126,11 +126,13 @@ class Canvas:
     def size(self):
         return len(self.d_id_obj)
 
-    def select_obj_ref_grid(self, select_empty=True, is_viable=True, error_mode=None):
+    def select_obj_ref_grid(self, select_empty=True, is_viable=True, exclude_grids=[]):
         if is_viable and self.size() == 0:
             return None, None, None, None
         options = []
         for (row, col), obj_ref in self.d_grid_obj.items():
+            if (row, col) in exclude_grids:
+                continue
             for (row_d, col_d), loc_rel in DICT_LOC_DELTA2NAME.items():
                 row_adj, col_adj = row - row_d, col - col_d
                 if not (0 <= row_adj < self.grid_size and 0 <= col_adj < self.grid_size):
@@ -199,8 +201,8 @@ class Canvas:
         (row, col) = random.choice(l_selected)
         return DICT_LOC_ABS2NAME[(row, col)], row, col
 
-    def select_loc_rel(self, select_empty=True, is_viable=None):
-        obj_ref, row, col, loc_rel = self.select_obj_ref_grid(select_empty, is_viable)
+    def select_loc_rel(self, select_empty=True, is_viable=None, excluded_grids=[]):
+        obj_ref, row, col, loc_rel = self.select_obj_ref_grid(select_empty, is_viable, excluded_grids)
         # obj_ref = self.select_obj_ref(select_empty, is_viable)
         # if obj_ref:
         #     row, col, loc_rel = self.select_adj_grid(obj_ref.row, obj_ref.col, select_empty, is_viable)
@@ -216,6 +218,9 @@ class Canvas:
             text += ' ' + self.get_loc_desc(loc_abs, loc_rel, obj_ref)
             return re.sub(' +', ' ', text)
         return self.get_obj_ref_desc(obj)
+
+    def get_obj_pattern_desc(self, objs):
+        tmpl = random.choice(DICT_TEMPLATES[OBJ_PTTN])
 
     def get_obj_ref_desc(self, obj):
         features = self.get_obj_features(obj)

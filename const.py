@@ -31,6 +31,8 @@ STATUS_FAILED = False
 
 OBJ = 'object'
 OBJ_REF = 'object_reference'
+OBJ_PTTN = 'object_pattern'
+
 ADD = 'add'
 DELETE = 'delete'
 MOVE = 'move'
@@ -68,7 +70,7 @@ TMPL_ADD = ["add one $obj", #  $loc_abs $loc_rel
 
 TMPL_DEL = ["now remove the $obj from the canvas", "delete the $obj", "please get rid of the $obj"]
 
-TMPL_MV = ["", ""]
+TMPL_MV = ["move $obj to $loc_abs $loc_rel", "put $obj to $loc_abs $loc_rel"]
 
 TMPL_LOC_ABS = ["at $loc_abs of the canvas"]
 
@@ -78,10 +80,13 @@ TMPL_OBJ_REF = ["$color $shape at $loc_rel of the $loc_abs part of the canvas"]
 
 TMPL_OBJ = ["$color $shape object ", "$color $shape one "]
 
+TMPL_OBJ_PTTN = [""]
+
 DICT_TEMPLATES = {ADD: TMPL_ADD,
                   DELETE: TMPL_DEL,
                   MOVE: TMPL_MV,
                   OBJ: TMPL_OBJ,
                   OBJ_REF: TMPL_OBJ_REF,
                   LOC_ABS: TMPL_LOC_ABS,
-                  LOC_REL: TMPL_LOC_REL}
+                  LOC_REL: TMPL_LOC_REL,
+                  OBJ_PTTN: TMPL_OBJ_PTTN}
