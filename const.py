@@ -9,17 +9,15 @@ MODE_FULL = 'full'
 MODE_MIN = 'min'
 MODES_REF = [MODE_MIN, MODE_FULL]
 
-SINGLE = 'single'
-MULTI = 'multi'
-PATTERN = 'pattern'
-MODES_STYLE = [SINGLE, PATTERN]
-
-PATTERN_STYLE = ['row', 'column']
-
 LOC_ABS = 'location_absolute'
 LOC_REL = 'location_relative'
 MODES_LOC = [LOC_ABS, LOC_REL]
 
+# SINGLE = 'single'
+# MULTI = 'multi'
+# PATTERN = 'pattern'
+# MODES_STYLE = [SINGLE, PATTERN]
+# PATTERN_STYLE = ['row', 'column']
 
 # state of grid
 STATE_EMPTY = 0
@@ -47,7 +45,7 @@ DICT_NAME2LOC_ABS = {
     'bottom-right': (GRID_SIZE - 1, GRID_SIZE - 1),
     'center': (GRID_SIZE // 2, GRID_SIZE // 2),
     'top-middle': (0, GRID_SIZE // 2),
-    'botton-middle': (GRID_SIZE - 1, GRID_SIZE // 2),
+    'bottom-middle': (GRID_SIZE - 1, GRID_SIZE // 2),
     'left-middle': (GRID_SIZE // 2, 0),
     'right-middle': (GRID_SIZE // 2, GRID_SIZE - 1)
 }

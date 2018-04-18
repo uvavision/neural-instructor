@@ -65,12 +65,12 @@ class Canvas:
     def size(self):
         return len(self.d_id_obj)
 
-    def select_obj_ref_grid(self, select_empty=True, is_viable=True, exclude_grids=[]):
-        if is_viable and self.size() == 0:
+    def select_obj_ref_grid(self, select_empty=True, is_viable=True, excluded_grids=[]):
+        if is_viable and self.size() - len(excluded_grids) <= 0:
             return None, None, None, None
         options = []
         for (row, col), obj_ref in self.d_grid_obj.items():
-            if (row, col) in exclude_grids:
+            if (row, col) in excluded_grids:
                 continue
             for (row_d, col_d), loc_rel in DICT_LOC_DELTA2NAME.items():
                 row_adj, col_adj = row - row_d, col - col_d
@@ -90,7 +90,7 @@ class Canvas:
             #     color = random.choice(COLORS)
             #     shape = random.choice(SHAPES)
             #     options.append(Object(color, shape, row, col))
-            if self.size() > 0: # wrong reference
+            if len(self.d_grid_obj) > 0: # wrong reference
                 (row, col), obj = random.choice(list(self.d_grid_obj.items()))
                 random_selector = random.uniform(0, 1)
                 if random_selector >= 0.5:
@@ -140,33 +140,26 @@ class Canvas:
         (row, col) = random.choice(l_selected)
         return DICT_LOC_ABS2NAME[(row, col)], row, col
 
-    def select_loc_rel(self, select_empty=True, is_viable=None, excluded_grids=[]):
-        obj_ref, row, col, loc_rel = self.select_obj_ref_grid(select_empty, is_viable, excluded_grids)
-        # obj_ref = self.select_obj_ref(select_empty, is_viable)
-        # if obj_ref:
-        #     row, col, loc_rel = self.select_adj_grid(obj_ref.row, obj_ref.col, select_empty, is_viable)
-        return obj_ref, row, col, loc_rel
-
-    def get_obj_desc(self, obj,  mode_ref=None, mode_loc=None):
+    def get_obj_desc(self, obj,  mode_ref=None):
         features = self.get_obj_features(obj, mode_ref)
         if len(features) > 0:
             color, shape, loc_abs, loc_rel, obj_ref = random.choice(features)
             obj.features = {'color': obj.color, 'shape': obj.shape,
-                             'loc_abs': loc_abs, 'loc_rel': loc_rel,
-                             'obj_ref': obj_ref.to_dict() if obj_ref else None}
+                            'loc_abs': loc_abs, 'loc_rel': loc_rel,
+                            'obj_ref': obj_ref.to_dict() if obj_ref else None}
             tmpl = random.choice(DICT_TEMPLATES[OBJ])
             s = Template(tmpl)
             text = s.substitute(color=xs(color), shape=xs(shape))
-            text += ' ' + self.get_loc_desc(loc_abs, loc_rel, obj_ref)
+            text += ' ' + self.get_loc_desc(loc_abs, loc_rel, obj_ref, mode_ref)
             return re.sub(' +', ' ', text)
         return self.get_obj_ref_desc(obj)
 
-    def get_obj_ref_desc(self, obj):
+    def get_obj_ref_desc(self, obj, mode_ref=None):
         features = self.get_obj_features(obj)
         random.shuffle(features)
         for feature in features:
             if feature[3] is None:
-                return self.get_obj_desc(obj)
+                return self.get_obj_desc(obj, mode_ref)
         tmpl = random.choice(DICT_TEMPLATES[OBJ_REF])
         s = Template(tmpl)
         for (row, col), loc_abs in DICT_LOC_ABS2NAME.items():
@@ -178,7 +171,7 @@ class Canvas:
                 return text
         return ''
 
-    def get_loc_desc(self, loc_abs, loc_rel, obj_ref):
+    def get_loc_desc(self, loc_abs, loc_rel, obj_ref, mode_ref=None):
         if loc_abs and loc_rel and obj_ref:
             mode_loc = random.choice(MODES_LOC)
         elif loc_abs:
@@ -193,7 +186,7 @@ class Canvas:
         if mode_loc == LOC_ABS:
             text = s.substitute(loc_abs=loc_abs)
         if mode_loc == LOC_REL:
-            t_obj_ref = self.get_obj_ref_desc(obj_ref)
+            t_obj_ref = self.get_obj_ref_desc(obj_ref, mode_ref)
             text = s.substitute(loc_rel=loc_rel, obj_ref=t_obj_ref)
         return text
 
@@ -240,15 +233,15 @@ class Canvas:
                 features = self.get_obj_features(self.d_id_obj[id_])
                 self.d_id_ref_feature[id_] = features
 
-    def is_action_viable(self, obj, action):
+    def is_action_viable(self, obj, act):
         if not (0 <= obj.row < self.grid_size and 0 <= obj.col < self.grid_size):
             return False
-        if action == ADD:
+        if act == ADD:
             state = self.get_state_by_coordinates(obj)
             if state == STATE_OCCU:
                 return False
             return True
-        if action == DELETE:
+        if act == DELETE:
             if obj.id_ in self.d_id_obj:
                 return True
             return False
@@ -261,8 +254,6 @@ class Canvas:
             self.d_feature_id[(obj.color, obj.shape)].append(obj.id_)
             self.d_feature_id[obj.color].append(obj.id_)
             self.d_feature_id[obj.shape].append(obj.id_)
-            # features = self.get_features_obj_ref(obj)
-            # self.d_id_ref_feature[obj.id_] = features
             self.update_spatial_ref_add(obj)
             return STATUS_SUCCESSFUL
         else:
@@ -271,6 +262,7 @@ class Canvas:
     def delete(self, obj):
         if self.is_action_viable(obj, DELETE):
             del self.d_id_obj[obj.id_]
+            del self.d_grid_obj[(obj.row, obj.col)]
             if obj.id_ in self.d_id_rel:
                 del self.d_id_rel[obj.id_]
             self.d_feature_id[(obj.color, obj.shape)].remove(obj.id_)
@@ -278,15 +270,14 @@ class Canvas:
             self.d_feature_id[obj.shape].remove(obj.id_)
             self.update_ref_obj_features(obj)
             self.update_spatial_ref_delete(obj)
-            del self.d_grid_obj[(obj.row, obj.col)]
             return STATUS_SUCCESSFUL
         return STATUS_FAILED
 
-    def move(self, obj_from, obj_to):
-        if self.is_action_valid(obj_from, DELETE) and \
-           self.is_action_valid(obj_to, ADD):
-            return self.delete(obj_from) and self.add(obj_to)
-        return STATUS_FAILED
+    # def move(self, obj_from, obj_to):
+    #     if self.is_action_valid(obj_from, DELETE) and \
+    #        self.is_action_valid(obj_to, ADD):
+    #         return self.delete(obj_from) and self.add(obj_to)
+    #     return STATUS_FAILED
 
     def get_obj_features(self, obj, mode_ref=None):
         lst = []
