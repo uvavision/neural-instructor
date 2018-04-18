@@ -1,0 +1,2155 @@
+[
+    {
+        "dial_id": 1,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 4,
+                        "col": 2
+                    },
+                    "loc_abs": "botton-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": "botton-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red circle object at botton-middle of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "circle",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a green circle object at center of the canvas"
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "triangle",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "bottom-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "triangle",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a green triangle one at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "row": 0,
+                        "col": 2
+                    },
+                    "loc_abs": "top-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "loc_abs": "top-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue circle one at top-middle of the canvas"
+                }
+            }
+        ]
+    },
+    {
+        "dial_id": 2,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "square",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red square object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "red",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "square",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "please get rid of the square object "
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "circle",
+                        "row": 4,
+                        "col": 2
+                    },
+                    "loc_abs": "botton-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "circle",
+                        "loc_abs": "botton-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a green circle one at botton-middle of the canvas"
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "green",
+                        "shape": "circle",
+                        "row": 4,
+                        "col": 2
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "circle",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "please get rid of the green one "
+                }
+            },
+            {
+                "turn": 5,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red circle object at center of the canvas"
+                }
+            },
+            {
+                "turn": 6,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 0
+                    },
+                    "loc_abs": "bottom-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "bottom-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square one at bottom-left of the canvas"
+                }
+            },
+            {
+                "turn": 7,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "bottom-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square object at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 8,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 4
+                    },
+                    "loc_abs": "right-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": "right-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one green square object at right-middle of the canvas"
+                }
+            },
+            {
+                "turn": 9,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 0,
+                        "col": 0
+                    },
+                    "loc_abs": "top-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": "top-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red circle one at top-left of the canvas"
+                }
+            }
+        ]
+    },
+    {
+        "dial_id": 3,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue square object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "please get rid of the object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 2
+                    },
+                    "loc_abs": "top-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "square",
+                        "loc_abs": "top-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red square one at top-middle of the canvas"
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red circle one at center of the canvas"
+                }
+            },
+            {
+                "turn": 5,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 6,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "right-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "delete the object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 7,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "top-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square one at top-right of the canvas"
+                }
+            },
+            {
+                "turn": 8,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now remove the one at center of the canvas from the canvas"
+                }
+            },
+            {
+                "turn": 9,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "bottom-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue circle object at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 10,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "circle",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one green circle object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 11,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "triangle",
+                        "row": 4,
+                        "col": 0
+                    },
+                    "loc_abs": "bottom-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "triangle",
+                        "loc_abs": "bottom-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue triangle object at bottom-left of the canvas"
+                }
+            }
+        ]
+    },
+    {
+        "dial_id": 4,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "bottom-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue circle object at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "top-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue circle one at top-right of the canvas"
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "top-left",
+                    "loc_rel": 1,
+                    "obj_ref": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "features": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now remove the one at top-right of the canvas from the canvas"
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 0,
+                        "col": 2
+                    },
+                    "loc_abs": "top-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "top-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red triangle object at top-middle of the canvas"
+                }
+            },
+            {
+                "turn": 5,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 4
+                    },
+                    "loc_abs": "right-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "right-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue square object at right-middle of the canvas"
+                }
+            },
+            {
+                "turn": 6,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "circle",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a green circle object at center of the canvas"
+                }
+            },
+            {
+                "turn": 7,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 0
+                    },
+                    "loc_abs": "top-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "top-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue square object at top-left of the canvas"
+                }
+            }
+        ]
+    },
+    {
+        "dial_id": 5,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 4
+                    },
+                    "loc_abs": "right-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": "right-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a green square object at right-middle of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 4
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now remove the one from the canvas"
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "top-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "square",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red square one at top-right of the canvas"
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "move",
+                    "obj": {
+                        "color": "red",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "botton-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "square",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "put red square one to at botton-middle of the canvas "
+                }
+            },
+            {
+                "turn": 5,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one green square object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 6,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "top-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one green square object at top-right of the canvas"
+                }
+            },
+            {
+                "turn": 7,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "bottom-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red triangle one at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 8,
+                "config": {},
+                "activity": {
+                    "act": "move",
+                    "obj": {
+                        "color": "red",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 2
+                    },
+                    "loc_abs": "bottom-left",
+                    "loc_rel": 2,
+                    "obj_ref": {
+                        "color": "green",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "features": {
+                        "color": "red",
+                        "shape": "square",
+                        "loc_abs": "botton-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "move red square one at botton-middle of the canvas to at 2 of the object at left-middle of the canvas at bottom-left of the canvas"
+                }
+            }
+        ]
+    },
+    {
+        "dial_id": 6,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "bottom-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue square one at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "delete the one at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square one at center of the canvas"
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "top-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square one at top-right of the canvas"
+                }
+            },
+            {
+                "turn": 5,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red triangle object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 6,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "right-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "delete the one at top-right of the canvas"
+                }
+            },
+            {
+                "turn": 7,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "top-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red circle one at top-right of the canvas"
+                }
+            },
+            {
+                "turn": 8,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "triangle",
+                        "row": 4,
+                        "col": 0
+                    },
+                    "loc_abs": "bottom-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "triangle",
+                        "loc_abs": "bottom-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue triangle object at bottom-left of the canvas"
+                }
+            }
+        ]
+    },
+    {
+        "dial_id": 7,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red circle object at center of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "move",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "right-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "put red object to at right-middle of the canvas "
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "move",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 4
+                    },
+                    "loc_abs": "top-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": "right-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "put red circle one at right-middle of the canvas to at top-right of the canvas "
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "please get rid of the red object "
+                }
+            },
+            {
+                "turn": 5,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square one at center of the canvas"
+                }
+            },
+            {
+                "turn": 6,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now remove the one at center of the canvas from the canvas"
+                }
+            },
+            {
+                "turn": 7,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 0,
+                        "col": 2
+                    },
+                    "loc_abs": "top-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "top-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red triangle object at top-middle of the canvas"
+                }
+            },
+            {
+                "turn": 8,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 0,
+                        "col": 2
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "delete the red object "
+                }
+            },
+            {
+                "turn": 9,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "circle",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one green circle object at center of the canvas"
+                }
+            },
+            {
+                "turn": 10,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "top-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red triangle one at top-right of the canvas"
+                }
+            },
+            {
+                "turn": 11,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 2,
+                        "col": 4
+                    },
+                    "loc_abs": "right-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "right-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red triangle object at right-middle of the canvas"
+                }
+            },
+            {
+                "turn": 12,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "square",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red square one at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 13,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 4,
+                        "col": 0
+                    },
+                    "loc_abs": "bottom-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "bottom-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red triangle object at bottom-left of the canvas"
+                }
+            }
+        ]
+    },
+    {
+        "dial_id": 8,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "triangle",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "triangle",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue triangle object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "triangle",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "triangle",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "delete the one "
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 0,
+                        "col": 2
+                    },
+                    "loc_abs": "top-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "top-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red triangle object at top-middle of the canvas"
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "bottom-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square one at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 5,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 0,
+                        "col": 0
+                    },
+                    "loc_abs": "top-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "top-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red triangle one at top-left of the canvas"
+                }
+            },
+            {
+                "turn": 6,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 0
+                    },
+                    "loc_abs": "bottom-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "bottom-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue square object at bottom-left of the canvas"
+                }
+            },
+            {
+                "turn": 7,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one green square object at center of the canvas"
+                }
+            }
+        ]
+    },
+    {
+        "dial_id": 9,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 0
+                    },
+                    "loc_abs": "top-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "top-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square one at top-left of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 0
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "delete the square one "
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "bottom-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue circle one at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "move",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "right-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "put blue circle object at bottom-right of the canvas to at right-middle of the canvas "
+                }
+            },
+            {
+                "turn": 5,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "triangle",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "triangle",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one green triangle one at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 6,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 2
+                    },
+                    "loc_abs": "botton-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": "botton-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one green square one at botton-middle of the canvas"
+                }
+            },
+            {
+                "turn": 7,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 0
+                    },
+                    "loc_abs": "bottom-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": "bottom-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a green square object at bottom-left of the canvas"
+                }
+            },
+            {
+                "turn": 8,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "circle",
+                        "row": 0,
+                        "col": 2
+                    },
+                    "loc_abs": "top-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "circle",
+                        "loc_abs": "top-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one green circle object at top-middle of the canvas"
+                }
+            },
+            {
+                "turn": 9,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "green",
+                        "shape": "circle",
+                        "row": 0,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "circle",
+                        "loc_abs": null,
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now remove the green circle object from the canvas"
+                }
+            },
+            {
+                "turn": 10,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 0
+                    },
+                    "loc_abs": "top-left",
+                    "loc_rel": 3,
+                    "obj_ref": {
+                        "color": "red",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 4
+                    },
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": "bottom-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now remove the one at bottom-left of the canvas from the canvas"
+                }
+            },
+            {
+                "turn": 11,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "square",
+                        "row": 4,
+                        "col": 4
+                    },
+                    "loc_abs": "bottom-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "square",
+                        "loc_abs": "bottom-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red square object at bottom-right of the canvas"
+                }
+            },
+            {
+                "turn": 12,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "green",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 2
+                    },
+                    "loc_abs": "top-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "green",
+                        "shape": "square",
+                        "loc_abs": "top-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a green square one at top-middle of the canvas"
+                }
+            }
+        ]
+    },
+    {
+        "dial_id": 10,
+        "dialog_data": [
+            {
+                "turn": 1,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red triangle object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 2,
+                "config": {},
+                "activity": {
+                    "act": "delete",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": null,
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now remove the one at left-middle of the canvas from the canvas"
+                }
+            },
+            {
+                "turn": 3,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "row": 2,
+                        "col": 0
+                    },
+                    "loc_abs": "left-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "triangle",
+                        "loc_abs": "left-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a red triangle object at left-middle of the canvas"
+                }
+            },
+            {
+                "turn": 4,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "row": 2,
+                        "col": 4
+                    },
+                    "loc_abs": "right-middle",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "loc_abs": "right-middle",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue circle object at right-middle of the canvas"
+                }
+            },
+            {
+                "turn": 5,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "red",
+                        "shape": "circle",
+                        "row": 4,
+                        "col": 0
+                    },
+                    "loc_abs": "bottom-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "red",
+                        "shape": "circle",
+                        "loc_abs": "bottom-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one red circle one at bottom-left of the canvas"
+                }
+            },
+            {
+                "turn": 6,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 0,
+                        "col": 4
+                    },
+                    "loc_abs": "top-right",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "top-right",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square object at top-right of the canvas"
+                }
+            },
+            {
+                "turn": 7,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "square",
+                        "row": 2,
+                        "col": 2
+                    },
+                    "loc_abs": "center",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "square",
+                        "loc_abs": "center",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "add one blue square object at center of the canvas"
+                }
+            },
+            {
+                "turn": 8,
+                "config": {},
+                "activity": {
+                    "act": "add",
+                    "obj": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "row": 0,
+                        "col": 0
+                    },
+                    "loc_abs": "top-left",
+                    "loc_rel": null,
+                    "obj_ref": null,
+                    "features": {
+                        "color": "blue",
+                        "shape": "circle",
+                        "loc_abs": "top-left",
+                        "loc_rel": null,
+                        "obj_ref": null
+                    },
+                    "message": "now place a blue circle one at top-left of the canvas"
+                }
+            }
+        ]
+    }
+]
