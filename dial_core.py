@@ -1,8 +1,8 @@
 from const import *
 import random
-from collections import OrderedDict
-from synthetic_layout import (Object, Canvas,
-                              tmpl2txt_act, tmpl2txt_loc, tmpl2txt_obj)
+import json
+from collections import OrderedDict, Counter
+from layout import (Object, Canvas, tmpl2txt_act)
 
 
 class Policy(object):
@@ -23,26 +23,48 @@ class Agent(object):
         self.policy = policy
         self.states = OrderedDict()
         self.canvas = Canvas()
-        self.act = None
-        self.objs = None
-        self.obj = None
-        self.loc_abs = None
-        self.loc_rel = None
-        self.obj_ref = None
-        self.message = None
-        self.mode_loc = None
-        self.mode_style = None
-        self.mode_ref = None
-        self.is_viable = None
+        # activity
+        self.act = None  # the action - add, delete,move
+        self.obj = None  # the object to be acted on
+        self.loc_abs = None  # the name of the absolute location of obj
+        self.loc_rel = None  # the name of the spatial relation between obj and another object
+        self.obj_ref = None  # the referred object for the relative location
+        self.message = None  # instruction or response or questions
+        # config
+        self.mode_loc = None  # absolute or relative location
+        self.mode_ref = None  #
+        self.mode_style = None  #
+        self.is_viable = None  # if the action is viable. set False to add noise
 
-    def reset(self):
-        self.objs = None
+    def reset_activity(self):
+        self.act = None
         self.obj = None
         self.loc_abs = None
         self.loc_rel = None
         self.obj_ref = None
-        self.mode_ref = None
+        self.features = None
         self.message = None
+
+    def activity2dict(self):
+        d = {'act': self.act,
+             'obj': self.obj.to_dict() if self.obj else None,
+             'loc_abs': self.loc_abs,
+             'loc_rel': self.loc_rel,
+             'obj_ref': self.obj_ref.to_dict() if self.obj_ref else None,
+             'features': self.obj.features,
+             'message': self.message
+        }
+        return d
+
+    def config2dict(self):
+        d = {}
+        return d
+
+    def reset_config(self):
+        self.mode_loc = None
+        self.mode_ref = None
+        self.mode_style = None
+        self.is_viable = None
 
     def get_add_activity(self, select_empty=True, is_viable=True, exclude_grids=[]):
         if self.canvas.size() == 0:
@@ -120,17 +142,17 @@ class Agent(object):
             self.mode_loc = random.choice(MODES_LOC)
         self.mode_style = SINGLE
         self.mode_loc = LOC_ABS
-        if act == ADD:
+        if self.act == ADD:
             self.get_add_activity()
             self.mode_ref = MODE_FULL
             self.message = self.generate_act_message_by_tmpl()
             self.canvas.add(self.obj)
-        if act == DELETE:
+        if self.act == DELETE:
             self.get_delete_activity()
             self.mode_ref = MODE_MIN
             self.message = self.generate_act_message_by_tmpl()
             self.canvas.delete(self.obj)
-        if act == MOVE:
+        if self.act == MOVE:
             obj_from, obj_to = self.get_move_activity()
             self.obj = obj_from
             self.message = self.generate_act_message_by_tmpl()
@@ -142,11 +164,11 @@ class Agent(object):
             self.mode_ref = random.choice(MODES_REF)
         lst = []
         t_loc_abs = t_loc_rel = ''
-        if act == ADD:
+        if self.act == ADD:
             t_obj = self.canvas.get_obj_desc(self.obj, MODE_FULL)
-        if act == DELETE:
+        if self.act == DELETE:
             t_obj = self.canvas.get_obj_desc(self.obj, self.mode_ref)
-        if act == MOVE:
+        if self.act == MOVE:
             t_obj = self.canvas.get_obj_desc(self.obj, self.mode_ref)
             if self.loc_abs:
                 t_loc_abs = self.canvas.get_loc_desc(self.loc_abs, self.loc_rel, self.obj_ref)
@@ -161,16 +183,45 @@ class Agent(object):
         return role, actions_pre
 
 
-if __name__ == '__main__':
-    for i in range(100):
+def get_act_sequence(n_obj):
+    lst_act = [ADD]
+    n_delete = random.randint(0, 3)
+    n_add = n_obj + n_delete
+    n_move = random.randint(0, 2)
+    n_turn = n_move + n_delete + n_add
+    print('#obj: {}, #turn: {}, #add: {}, #delete: {}, #move: {}'.format(n_obj, n_turn, n_add, n_delete, n_move))
+    while len(lst_act) < n_turn:
+        d_ct = Counter(lst_act)
+        ct_add, ct_delete, ct_move = d_ct[ADD], d_ct[DELETE], d_ct[MOVE]
+        if ct_move < n_move and ct_add > ct_delete and random.choice([True, False]):
+            lst_act.append(MOVE)
+        if ct_delete < n_delete and ct_delete < ct_add and random.choice([True, False]):
+            lst_act.append(DELETE)
+        if ct_add < n_add and random.choice([True, False]):
+            lst_act.append(ADD)
+    return lst_act
+
+
+def generate_data(n_dial, out_json=None):
+    data = []
+    for i in range(n_dial):
+        d_dial = {'dial_id': i + 1, 'dialog_data': []}
+        n_obj = random.randint(3, 6)
+        lst_act = get_act_sequence(n_obj)
+        print(lst_act)
         agent = Agent()
-        agent.mode_loc = LOC_REL
-        agent.is_viable = True
-        lst_activity = [ADD, ADD, DELETE, ADD, DELETE, DELETE]
-        lst_activity = [ADD, MOVE]
-        for act in lst_activity:
+        for turn, act in enumerate(lst_act):
             agent.get_activity(act)
+            d = {'turn': turn + 1,'config': agent.config2dict(), 'activity': agent.activity2dict()}
+            d_dial['dialog_data'].append(d)
             # print(agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
             print("###", agent.message)
-            agent.reset()
-        # break
+            agent.reset_activity()
+            agent.reset_config()
+        data.append(d_dial)
+    if out_json:
+        json.dump(data, open(out_json, 'w'), indent=4)
+
+
+if __name__ == '__main__':
+    generate_data(10, 'data_dial.json')
