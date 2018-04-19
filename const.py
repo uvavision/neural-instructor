@@ -68,11 +68,11 @@ TMPL_ADD = ["add one $obj", #  $loc_abs $loc_rel
 
 TMPL_DEL = ["please remove the $obj from the canvas", "delete the $obj", "now get rid of the $obj"]
 
-TMPL_MV = ["move $obj to $loc_abs $loc_rel", "place $obj to $loc_abs $loc_rel"]
+TMPL_MV = ["move the $obj to $loc_abs $loc_rel", "place the $obj to $loc_abs $loc_rel"]
 
-TMPL_LOC_ABS = ["at $loc_abs of the canvas"]
+TMPL_LOC_ABS = ["to/at $loc_abs of the canvas"]
 
-TMPL_LOC_REL = ["at $loc_rel of the $obj_ref"]
+TMPL_LOC_REL = ["to/at $loc_rel of the $obj_ref"]
 
 TMPL_OBJ_REF = ["$color $shape at $loc_rel of the $loc_abs location of the canvas"]
 
