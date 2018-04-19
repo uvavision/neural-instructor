@@ -156,11 +156,11 @@ class Canvas:
 
 
     def get_obj_ref_desc(self, obj, mode_ref=None):
-        # features = self.get_obj_features(obj)
-        # random.shuffle(features)
-        # for feature in features:
-        #     if feature[3] is None:
-        #         return self.get_obj_desc(obj, mode_ref)
+        features = self.get_obj_features(obj)
+        random.shuffle(features)
+        for feature in features:
+            if feature[2] is not None:
+                return self.get_obj_desc(obj, mode_ref)
         tmpl = random.choice(DICT_TEMPLATES[OBJ_REF])
         s = Template(tmpl)
         for (row, col), loc_abs in DICT_LOC_ABS2NAME.items():
@@ -187,7 +187,7 @@ class Canvas:
         text = ''
         if mode_loc == LOC_ABS:
             text = s.substitute(loc_abs=loc_abs)
-        if mode_loc == LOC_REL:
+        if mode_loc == LOC_REL and obj_ref:
             t_obj_ref = self.get_obj_ref_desc(obj_ref, mode_ref)
             text = s.substitute(loc_rel=loc_rel, obj_ref=t_obj_ref)
         return text

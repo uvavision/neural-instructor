@@ -217,7 +217,7 @@ def generate_data(n_dial, is_viable=True, out_json=None):
             d = {'turn': turn + 1,'config': agent.config2dict(), 'activities': activities}
             d_dial['dialog_data'].append(d)
             # print(agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
-            # print("###", agent.message)
+            print("###", agent.message)
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=None, is_viable=is_viable)
         data.append(d_dial)
@@ -226,4 +226,4 @@ def generate_data(n_dial, is_viable=True, out_json=None):
 
 
 if __name__ == '__main__':
-    generate_data(n_dial=10, is_viable=True, out_json='data_dial.json')
+    generate_data(n_dial=10000, is_viable=True, out_json='data_dial.json')
