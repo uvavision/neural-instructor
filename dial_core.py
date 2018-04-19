@@ -3,6 +3,7 @@ import random
 import json
 from collections import OrderedDict, Counter
 from layout import (Object, Canvas, tmpl2txt_act)
+import requests
 
 
 class Policy(object):
@@ -135,6 +136,7 @@ class Agent(object):
         if act == ADD:
             self.act = act
             self.get_add_activity(select_empty=True, is_viable=self.is_viable)
+            # TODO
             self.mode_ref = MODE_FULL
             self.message = self.generate_act_message_by_tmpl()
             self.canvas.add(self.obj)
@@ -168,6 +170,7 @@ class Agent(object):
         lst = []
         t_loc_abs = t_loc_rel = ''
         if act == ADD:
+            # TODO
             t_obj = self.canvas.get_obj_desc(self.obj, MODE_FULL)
         if act == DELETE:
             t_obj = self.canvas.get_obj_desc(self.obj, self.mode_ref)
@@ -211,16 +214,22 @@ def generate_data(n_dial, is_viable=True, out_json=None):
         d_dial = {'dial_id': i + 1, 'dialog_data': []}
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
-        agent = Agent(mode_loc=None, mode_ref=None, is_viable=is_viable)
+        agent = Agent(mode_loc=None, mode_ref=MODE_MIN, is_viable=is_viable)
+        visualize_samples = []
         for turn, act in enumerate(lst_act):
             activities = agent.get_activity(act)
             d = {'turn': turn + 1,'config': agent.config2dict(), 'activities': activities}
             d_dial['dialog_data'].append(d)
             # print(agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
             print("###", agent.message)
+            print(agent.canvas.get_desc())
+            visualize_samples.append({"instruction": agent.message, "canvas": agent.canvas.get_desc()})
             agent.reset_activity()
-            agent.reset_config(mode_loc=None, mode_ref=None, is_viable=is_viable)
+            agent.reset_config(mode_loc=None, mode_ref=MODE_MIN, is_viable=is_viable)
         data.append(d_dial)
+        # run the server: python canvas_render.py, visit the result at http://localhost:5001/dialog
+        r = requests.post("http://localhost:5001/new_dialog", json=visualize_samples)
+        r.raise_for_status()
     if out_json:
         json.dump(data, open(out_json, 'w'), indent=4)
 
