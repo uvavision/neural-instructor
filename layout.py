@@ -195,15 +195,13 @@ class Canvas:
     def get_desc(self):
         grid_size = 100
         layout = []
-        for obj in self.objects:
+        for id, obj in self.d_id_obj.items():
             top = obj.row * grid_size + 10
             left = obj.col * grid_size + 10
             width = grid_size - 20
             height = grid_size - 20
             label = obj.color
             shape = obj.shape
-            if shape == 'square':
-                shape = 'rectangle'
             layout.append({"left": left, "top": top, "width": width, "height": height, "label": label, "shape": shape})
         return '#CANVAS-' + str(layout).replace("'", '"').replace(' ', '')
 
