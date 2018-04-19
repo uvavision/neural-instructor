@@ -66,15 +66,15 @@ DICT_LOC_DELTA2NAME = {
 TMPL_ADD = ["add one $obj", #  $loc_abs $loc_rel
             "now place a $obj"]
 
-TMPL_DEL = ["now remove the $obj from the canvas", "delete the $obj", "please get rid of the $obj"]
+TMPL_DEL = ["please remove the $obj from the canvas", "delete the $obj", "now get rid of the $obj"]
 
-TMPL_MV = ["move $obj to $loc_abs $loc_rel", "put $obj to $loc_abs $loc_rel"]
+TMPL_MV = ["move $obj to $loc_abs $loc_rel", "place $obj to $loc_abs $loc_rel"]
 
 TMPL_LOC_ABS = ["at $loc_abs of the canvas"]
 
 TMPL_LOC_REL = ["at $loc_rel of the $obj_ref"]
 
-TMPL_OBJ_REF = ["$color $shape at $loc_rel of the $loc_abs part of the canvas"]
+TMPL_OBJ_REF = ["$color $shape at $loc_rel of the $loc_abs location of the canvas"]
 
 TMPL_OBJ = ["$color $shape object ", "$color $shape one "]
 

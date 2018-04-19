@@ -131,7 +131,6 @@ class Agent(object):
     def get_activity(self, act):
         if not self.mode_loc:
             self.mode_loc = random.choice(MODES_LOC)
-        self.mode_loc = LOC_ABS
         activities = []
         if act == ADD:
             self.act = act
@@ -206,14 +205,13 @@ def get_act_sequence(n_obj):
     return lst_act
 
 
-def generate_data(n_dial, out_json=None):
+def generate_data(n_dial, is_viable=True, out_json=None):
     data = []
     for i in range(n_dial):
         d_dial = {'dial_id': i + 1, 'dialog_data': []}
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
-        # print(lst_act)
-        agent = Agent(mode_loc=None, mode_ref=None, is_viable=True)
+        agent = Agent(mode_loc=None, mode_ref=None, is_viable=is_viable)
         for turn, act in enumerate(lst_act):
             activities = agent.get_activity(act)
             d = {'turn': turn + 1,'config': agent.config2dict(), 'activities': activities}
@@ -221,11 +219,11 @@ def generate_data(n_dial, out_json=None):
             # print(agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
             # print("###", agent.message)
             agent.reset_activity()
-            agent.reset_config(mode_loc=None, mode_ref=None, is_viable=True)
+            agent.reset_config(mode_loc=None, mode_ref=None, is_viable=is_viable)
         data.append(d_dial)
     if out_json:
         json.dump(data, open(out_json, 'w'), indent=4)
 
 
 if __name__ == '__main__':
-    generate_data(1000, 'data_dial.json')
+    generate_data(n_dial=10, is_viable=True, out_json='data_dial.json')
