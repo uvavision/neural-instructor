@@ -154,12 +154,13 @@ class Canvas:
             return re.sub(' +', ' ', text)
         return self.get_obj_ref_desc(obj)
 
+
     def get_obj_ref_desc(self, obj, mode_ref=None):
-        features = self.get_obj_features(obj)
-        random.shuffle(features)
-        for feature in features:
-            if feature[3] is None:
-                return self.get_obj_desc(obj, mode_ref)
+        # features = self.get_obj_features(obj)
+        # random.shuffle(features)
+        # for feature in features:
+        #     if feature[3] is None:
+        #         return self.get_obj_desc(obj, mode_ref)
         tmpl = random.choice(DICT_TEMPLATES[OBJ_REF])
         s = Template(tmpl)
         for (row, col), loc_abs in DICT_LOC_ABS2NAME.items():
@@ -171,14 +172,15 @@ class Canvas:
                 return text
         return ''
 
-    def get_loc_desc(self, loc_abs, loc_rel, obj_ref, mode_ref=None):
-        if loc_abs and loc_rel and obj_ref:
-            mode_loc = random.choice(MODES_LOC)
-        elif loc_abs:
-            mode_loc = LOC_ABS
-        elif loc_rel and obj_ref:
-            mode_loc = LOC_REL
-        else:
+    def get_loc_desc(self, loc_abs, loc_rel, obj_ref, mode_ref=None, mode_loc=None):
+        options = []
+        if loc_abs:
+            options.append(LOC_ABS)
+        if loc_rel and obj_ref:
+            options.append(LOC_REL)
+        if mode_loc not in options and len(options) > 0:
+            mode_loc = random.choice(options)
+        if mode_loc is None:
             return ''
         tmpl = random.choice(DICT_TEMPLATES[mode_loc])
         s = Template(tmpl)
@@ -261,8 +263,10 @@ class Canvas:
 
     def delete(self, obj):
         if self.is_action_viable(obj, DELETE):
-            del self.d_id_obj[obj.id_]
-            del self.d_grid_obj[(obj.row, obj.col)]
+            if obj.id_ in self.d_id_obj:
+                del self.d_id_obj[obj.id_]
+            if (obj.row, obj.col) in self.d_grid_obj:
+                del self.d_grid_obj[(obj.row, obj.col)]
             if obj.id_ in self.d_id_rel:
                 del self.d_id_rel[obj.id_]
             self.d_feature_id[(obj.color, obj.shape)].remove(obj.id_)
@@ -280,6 +284,7 @@ class Canvas:
     #     return STATUS_FAILED
 
     def get_obj_features(self, obj, mode_ref=None):
+        # feature: color, shape, loc_abs, loc_rel, obj_ref
         lst = []
         loc_abs = loc_rel = obj_ref = None
         if (obj.row, obj.col) in DICT_LOC_ABS2NAME:
