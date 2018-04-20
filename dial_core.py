@@ -136,8 +136,6 @@ class Agent(object):
         if act == ADD:
             self.act = act
             self.get_add_activity(select_empty=True, is_viable=self.is_viable)
-            # TODO
-            self.mode_ref = MODE_FULL
             self.message = self.generate_act_message_by_tmpl()
             self.canvas.add(self.obj)
             activities.append(self.activity2dict())
@@ -170,12 +168,11 @@ class Agent(object):
         lst = []
         t_loc_abs = t_loc_rel = ''
         if act == ADD:
-            # TODO
-            t_obj = self.canvas.get_obj_desc(self.obj, MODE_FULL)
+            t_obj = self.canvas.get_obj_desc(self.obj, MODE_FULL, self.mode_ref)
         if act == DELETE:
-            t_obj = self.canvas.get_obj_desc(self.obj, self.mode_ref)
+            t_obj = self.canvas.get_obj_desc(self.obj, self.mode_ref, self.mode_ref)
         if act == MOVE:
-            t_obj = self.canvas.get_obj_desc(self.obj, self.mode_ref)
+            t_obj = self.canvas.get_obj_desc(self.obj, self.mode_ref, self.mode_ref)
             if self.loc_abs:
                 t_loc_abs = self.canvas.get_loc_desc(self.loc_abs, self.loc_rel, self.obj_ref, self.mode_ref)
             if self.loc_rel and self.obj_ref:
@@ -220,7 +217,7 @@ def generate_data(n_dial, is_viable=True, out_json=None):
             activities = agent.get_activity(act)
             d = {'turn': turn + 1,'config': agent.config2dict(), 'activities': activities}
             d_dial['dialog_data'].append(d)
-            # print(agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
+            print('@@@', agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
             print("###", agent.message)
             print(agent.canvas.get_desc())
             visualize_samples.append({"instruction": agent.message, "canvas": agent.canvas.get_desc()})
@@ -235,4 +232,4 @@ def generate_data(n_dial, is_viable=True, out_json=None):
 
 
 if __name__ == '__main__':
-    generate_data(n_dial=10000, is_viable=True, out_json='data_dial.json')
+    generate_data(1000)

@@ -53,14 +53,14 @@ DICT_NAME2LOC_ABS = {
 DICT_LOC_ABS2NAME = {v: k for k, v in DICT_NAME2LOC_ABS.items()}
 
 DICT_LOC_DELTA2NAME = {
-    (1, 0): 'top-of',
-    (-1, 0): 'bottom-of',
-    (0, -1): 'right-of',
-    (0, 1): 'left-of',
-    (1, 1): 'top-left-of',
-    (1, -1): 'top-right-of',
-    (-1, 1): 'bottom-left-of',
-    (-1, -1): 'bottom-right-of',
+    (-1, 0): 'top-of',  # A is at top-of B  (A.row - B.row)
+    (1, 0): 'bottom-of',
+    (0, 1): 'right-of',
+    (0, -1): 'left-of',
+    (-1, -1): 'top-left-of',
+    (-1, 1): 'top-right-of',
+    (1, -1): 'bottom-left-of',
+    (1, 1): 'bottom-right-of',
 }
 
 TMPL_ADD = ["add one $obj", #  $loc_abs $loc_rel

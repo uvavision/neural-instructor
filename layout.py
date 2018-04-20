@@ -20,11 +20,10 @@ def tmpl2txt_act(act, t_obj, t_loc_abs="", t_loc_rel=""):
 
 
 def get_rel_loc(obj1, obj2):
-    del_c = obj1.col - obj2.col
-    del_r = obj1.row - obj2.row
-    if (del_c, del_r) in DICT_LOC_DELTA2NAME:
-        del_r = obj1.row - obj2.row
-        return DICT_LOC_DELTA2NAME[(del_c, del_r)]
+    row_d = obj1.row - obj2.row
+    col_d = obj1.col - obj2.col
+    if (row_d, col_d) in DICT_LOC_DELTA2NAME:
+        return DICT_LOC_DELTA2NAME[(row_d, col_d)]
     return None
 
 
@@ -38,7 +37,7 @@ class Object:
         self.id_ = self.get_id()
 
     def __str__(self):
-        return 'color: {}; shape: {}; row: {}; col: {}'.format(self.color,
+        return '{}; {}; row: {}; col: {}'.format(self.color,
                 self.shape, self.row, self.col)
 
     def get_id(self):
@@ -73,7 +72,7 @@ class Canvas:
             if (row, col) in excluded_grids:
                 continue
             for (row_d, col_d), loc_rel in DICT_LOC_DELTA2NAME.items():
-                row_adj, col_adj = row - row_d, col - col_d
+                row_adj, col_adj = row + row_d, col + col_d
                 if not (0 <= row_adj < self.grid_size and 0 <= col_adj < self.grid_size):
                     continue
                 if select_empty and is_viable:
@@ -107,23 +106,6 @@ class Canvas:
             return random.choice(options)
         return None, None, None, None
 
-    def select_adj_grid(self, row, col, is_viable=None):
-        lst_grid = []
-        for (row_d, col_d), loc_rel in DICT_LOC_DELTA2NAME.items():
-            row_adj = row - row_d
-            col_adj = col - col_d
-            cond_1 = (0 <= row_adj < self.grid_size and 0 <= col_adj < self.grid_size)
-            cond_2 = (row_adj, col_adj) not in self.d_grid_obj
-            if is_viable == True and cond_1 and cond_2:
-                lst_grid.append((row_adj, col_adj, loc_rel))
-            if is_viable == False and not cond_1 and not cond_2:
-                lst_grid.append((row_adj, col_adj, loc_rel))
-            if is_viable is None:
-                lst_grid.append((row_adj, col_adj, loc_rel))
-        if len(lst_grid) > 0:
-            return random.choice(lst_grid)
-        return None, None, None
-
     def select_loc_abs(self, select_empty=True, is_viable=None):
         l_all = list(DICT_LOC_ABS2NAME.keys())
         l_not_empty = [e for e in self.d_grid_obj.keys() if e]
@@ -140,7 +122,7 @@ class Canvas:
         (row, col) = random.choice(l_selected)
         return DICT_LOC_ABS2NAME[(row, col)], row, col
 
-    def get_obj_desc(self, obj,  mode_ref=None):
+    def get_obj_desc(self, obj,  mode_ref=None, mode_ref_loc=None):
         features = self.get_obj_features(obj, mode_ref)
         if len(features) > 0:
             color, shape, loc_abs, loc_rel, obj_ref = random.choice(features)
@@ -150,22 +132,21 @@ class Canvas:
             tmpl = random.choice(DICT_TEMPLATES[OBJ])
             s = Template(tmpl)
             text = s.substitute(color=xs(color), shape=xs(shape))
-            text += ' ' + self.get_loc_desc(loc_abs, loc_rel, obj_ref, mode_ref)
+            text += ' ' + self.get_loc_desc(loc_abs, loc_rel, obj_ref, mode_ref_loc)
             return re.sub(' +', ' ', text)
         return self.get_obj_ref_desc(obj)
-
 
     def get_obj_ref_desc(self, obj, mode_ref=None):
         features = self.get_obj_features(obj)
         random.shuffle(features)
         for feature in features:
-            if feature[2] is not None:
-                return self.get_obj_desc(obj, mode_ref)
+            if feature[2] is not None: # abs
+                return self.get_obj_desc(obj, mode_ref, mode_ref)
         tmpl = random.choice(DICT_TEMPLATES[OBJ_REF])
         s = Template(tmpl)
-        for (row, col), loc_abs in DICT_LOC_ABS2NAME.items():
-            row_d = obj.row - row
-            col_d = obj.col - col
+        for (row_ref, col_ref), loc_abs in DICT_LOC_ABS2NAME.items():
+            row_d = obj.row - row_ref
+            col_d = obj.col - col_ref
             if (row_d, col_d) in DICT_LOC_DELTA2NAME:
                 loc_rel = DICT_LOC_DELTA2NAME[(row_d, col_d)]
                 text = s.substitute(color=obj.color, shape=obj.shape, loc_rel=loc_rel, loc_abs=loc_abs)
@@ -298,14 +279,14 @@ class Canvas:
                 loc_rel, obj_ref = None, None
         else:
             for id_, obj_r in self.d_id_obj.items():
-                rel = get_rel_loc(obj_r, obj)
-                if rel:
-                    loc_rel, obj_ref = rel, obj_r
-                    break
                 rel = get_rel_loc(obj, obj_r)
                 if rel:
                     loc_rel, obj_ref = rel, obj_r
                     break
+                # rel = get_rel_loc(obj_r, obj)
+                # if rel:
+                #     loc_rel, obj_ref = rel, obj_r
+                #     break
         if mode_ref == MODE_FULL:
             lst_full = []
             if loc_abs:
