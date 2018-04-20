@@ -9,7 +9,9 @@ import requests
 from Shape2D import get_shape2d_loader, render_canvas
 from utils import adjust_lr, clip_gradient
 from torch.distributions import Categorical
+from PainterModel import Shape2DPainterNet
 from tqdm import tqdm
+import numpy as np
 
 
 # Training settings
@@ -108,8 +110,11 @@ class LanguageModelCriterion(nn.Module):
         input = to_contiguous(input).view(-1, input.size(2))
         target = to_contiguous(target).view(-1, 1)
         output = - input.gather(1, target) * mask
-        rewards = -output.view(batch_size, -1).sum(dim=1).data
-        model.rewards = Variable((rewards - rewards.mean()) / (rewards.std() + 1e-6))
+        # reward is the log likelihood of the target sequence
+        rewards = (input.gather(1, target) * mask).view(batch_size, -1).sum(dim=1).data
+        model.rewards = Variable(rewards - model.running_baseline)
+        model.running_baseline = 0.9 * model.running_baseline + 0.1 * rewards.mean()
+        # model.rewards = Variable((rewards - rewards.mean()) / (rewards.std() + 1e-6))
         output = torch.sum(output) / torch.sum(mask)
 
         return output
@@ -312,6 +317,7 @@ class InstAtt(nn.Module):
         self.saved_log_probs = None
         self.rewards = None
         self.sampled_actions = None
+        self.running_baseline = 0
 
     def forward(self, inst, prev_canvas, final_canvas, extra=None):
         # http://pytorch.org/docs/master/nn.html#torch.nn.LSTMCell
@@ -344,9 +350,9 @@ class InstAtt(nn.Module):
         return step_output, state
 
     def sample(self, prev_canvas, final_canvas, extra=None):
-        assert not self.embed.training
-        assert not self.att_lstm_cell.training
-        assert not self.fc_out.training
+        # assert not self.embed.training
+        # assert not self.att_lstm_cell.training
+        # assert not self.fc_out.training
         sample_max = True
         temperature = 0.8
         seq = []
@@ -371,14 +377,15 @@ class InstAtt(nn.Module):
                     it = it.view(-1).long()
             if t >= 1:
                 seq.append(it)
-            logprobs, state = self.step(Variable(it, volatile=True), state, conv_canvas, prev_canvas, extra)
+            # logprobs, state = self.step(Variable(it, volatile=True), state, conv_canvas, prev_canvas, extra)
+            logprobs, state = self.step(Variable(it), state, conv_canvas, prev_canvas, extra)
         return torch.t(torch.stack(seq)).cpu()
 
 # sample_loader = get_shape2d_loader(split='sample', batch_size=2)
 # print(len(sample_loader.dataset))
 
 
-train_loader = get_shape2d_loader(split='train', batch_size=args.batch_size)
+train_loader = get_shape2d_loader(split='val', batch_size=args.batch_size)
 val_loader = get_shape2d_loader(split='val', batch_size=50)
 assert train_loader.dataset.vocab_size == val_loader.dataset.vocab_size
 assert train_loader.dataset.max_seq_length == val_loader.dataset.max_seq_length
@@ -403,12 +410,22 @@ val_loader_iter = iter(val_loader)
 model = InstAtt(train_loader.dataset.vocab_size, train_loader.dataset.max_seq_length)
 # model.load_state_dict(torch.load('models_topdown/model_20.pth'))
 # model.load_state_dict(torch.load('models_topdown_3att_att64_hardatt/model_13.pth'))
+# model.load_state_dict(torch.load('models_topdown_3att_att64_content_planning_absmix_reinforce/model_5.pth'))
+# model.load_state_dict(torch.load('models_topdown_3att_att64_content_planning_absmix_reinforce_running_baseline/model_20.pth'))
+model.load_state_dict(torch.load("instructor_trained_with_painter/model_20.pth"))
 model.cuda()
 loss_fn = LanguageModelCriterion()
+
+painter_model = Shape2DPainterNet(train_loader.dataset.vocab_size)
+painter_model.load_state_dict(torch.load('painter-models_simple_mean/model_20.pth'))
+painter_model.cuda()
+painter_model.eval()
 
 
 # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0)
+fc_att1_optimizer = optim.Adam(model.fc_att1.parameters(), lr=1e-3, weight_decay=0)
+debug_found = False
 
 
 def eval_sample():
@@ -418,6 +435,10 @@ def eval_sample():
     data = [Variable(_, volatile=True).cuda() for _ in val_data[:-1]]
     prev_canvas, inst, next_obj, final_canvas, ref_obj = data
     diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
+    for i, d in enumerate(val_raw_data):
+        if d['current_instruction'] == 'add a green circle to top-left-of the blue circle':
+            debug_found = True
+            print(i)
     diff_canvas_objs = [train_loader.dataset.decode_canvas(diff_canvas.data[i]) for i in range(diff_canvas.size(0))]
     samples = model.sample(prev_canvas, final_canvas, (next_obj, ref_obj, False))
     samples = decode_sequence(train_loader.dataset.ix_to_word, samples)
@@ -429,6 +450,84 @@ def eval_sample():
         d['diff_canvas'] = render_canvas(diff_canvas_objs[i]).replace(' ', '')
     r = requests.post("http://vision.cs.virginia.edu:5001/new_task", json=val_raw_data)
     print('request sent')
+
+
+def get_painter_rewards(target_obj_prediction, final_canvas):
+    batch_size = target_obj_prediction.size(0)
+    rewards = torch.zeros(batch_size)
+    for i in range(batch_size):
+        pos = target_obj_prediction[i, 2] * 5 + target_obj_prediction[i, 3]
+        if pos < 25 and torch.equal(target_obj_prediction[i], final_canvas[i, pos]):
+            rewards[i] = 1
+        else:
+            rewards[i] = -1
+    return rewards
+
+
+def train_with_painter(painter_model, epoch):
+    model.train()
+    painter_model.eval()
+    epoch_rewards = []
+    for batch_idx, data in enumerate(train_loader):
+        raw_data = data[-1]
+        data = [Variable(_, requires_grad=False).cuda() for _ in data[:-1]]
+        prev_canvas, inst, next_obj, final_canvas, ref_obj = data
+        fc_att1_optimizer.zero_grad()
+        samples = model.sample(prev_canvas, final_canvas, (next_obj, ref_obj, None))
+        # [a, b, c, 0, d, 0] -> [a, b, c, 0, 0, 0]
+        masks = (samples == 0)
+        for i in range(samples.size(0)):
+            if masks[i].sum() > 0:
+                index = torch.nonzero(masks[i])[0, 0]
+                samples[i, index:] = 0
+        samples_input = torch.zeros(inst.size()).long()
+        # [a, b, ...] -> [0, a, b, ...]
+        samples_input[:, 1:samples.size(1)+1] = samples
+        target_obj_prediction = get_painter_model_prediction(painter_model,
+                                                             [Variable(samples_input.cuda()), prev_canvas,
+                                                              ref_obj, next_obj])
+        # print((torch.eq(target_obj_predict, next_obj.data).sum(dim=1) == 4).long().sum())
+        painter_rewards = get_painter_rewards(target_obj_prediction, final_canvas.data.long())
+
+        # samples2 = decode_sequence(train_loader.dataset.ix_to_word, samples)
+        # diff_canvas = compute_diff_canvas(prev_canvas, final_canvas)
+        # diff_canvas_objs = [train_loader.dataset.decode_canvas(diff_canvas.data[i]) for i in range(diff_canvas.size(0))]
+        # for i in range(prev_canvas.size(0)):
+        #     raw_data[i]['predicted_instruction'] = samples2[i]
+        # for i, d in enumerate(raw_data):
+        #     d['prev_canvas'] = render_canvas(d['prev_canvas']).replace(' ', '')
+        #     d['final_canvas'] = render_canvas(d['final_canvas']).replace(' ', '')
+        #     d['diff_canvas'] = render_canvas(diff_canvas_objs[i]).replace(' ', '')
+        # r = requests.post("http://vision.cs.virginia.edu:5001/new_task", json=raw_data)
+        # print('request sent')
+
+        policy_loss = (-model.saved_log_probs * Variable(painter_rewards.cuda())).sum()
+        policy_loss.backward()
+        clip_gradient(fc_att1_optimizer, 0.1)
+        fc_att1_optimizer.step()
+        model.saved_log_probs = None
+        model.sampled_actions = None
+        model.rewards = None
+
+        if batch_idx % args.log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tRewards: {:.6f})'.format(
+                epoch, batch_idx * args.batch_size, len(train_loader.dataset),
+                       100. * batch_idx / len(train_loader), painter_rewards.mean()))
+        epoch_rewards.append(painter_rewards.mean())
+    print("epoch reward {}".format(np.array(epoch_rewards).mean()))
+    torch.save(model.state_dict(), 'instructor_trained_with_painter/model_{}.pth'.format(epoch))
+
+
+
+def get_painter_model_prediction(painter_model, vars):
+    vars = [Variable(var.data, volatile=True) for var in vars]
+    prediction = painter_model(*vars)
+    prediction = [p.data for p in prediction]
+    target_obj = torch.stack([torch.max(prediction[0], dim=1)[1],
+                              torch.max(prediction[1], dim=1)[1],
+                              torch.round(prediction[2]).long(),
+                              torch.round(prediction[3]).long()], dim=1)
+    return target_obj
 
 
 def train(epoch):
@@ -457,17 +556,19 @@ def train(epoch):
                        100. * batch_idx / len(train_loader), loss.data[0]))
     # torch.save(model.state_dict(), 'models_topdown_3att_att64_hardatt/model_{}.pth'.format(epoch))
     # torch.save(optimizer.state_dict(), 'models_topdown_3att_att64_hardatt/optimizer_{}.pth'.format(epoch))
-    torch.save(model.state_dict(), 'models_topdown_3att_att64_content_planning_absmix_reinforce/model_{}.pth'.format(epoch))
-    torch.save(optimizer.state_dict(), 'models_topdown_3att_att64_content_planning_absmix_reinforce/optimizer_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'models_topdown_3att_att64_content_planning_absmix_reinforce_running_baseline/model_{}.pth'.format(epoch))
+    torch.save(optimizer.state_dict(), 'models_topdown_3att_att64_content_planning_absmix_reinforce_running_baseline/optimizer_{}.pth'.format(epoch))
 
 
 if __name__ == '__main__':
-    for epoch in range(1, args.epochs + 1):
-        eval_sample()
-        model.saved_log_probs = None
-        model.sampled_actions = None
-        model.rewards = None
-        # del model.saved_log_probs[:]
-        train(epoch)
+    eval_sample()
+    # for epoch in range(1, args.epochs + 1):
+    #     train_with_painter(painter_model, epoch)
+    #     # eval_sample()
+    # #     model.saved_log_probs = None
+    # #     model.sampled_actions = None
+    # #     model.rewards = None
+    # #     # del model.saved_log_probs[:]
+    # #     train(epoch)
 
 
