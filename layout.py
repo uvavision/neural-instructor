@@ -56,7 +56,7 @@ class Canvas:
     def __init__(self, grid_size=GRID_SIZE):
         self.d_id_obj = {}
         self.d_feature_id = defaultdict(list)  # key (color, shape)
-        self.d_id_ref_feature = defaultdict(list)
+        self.d_id_feature = defaultdict(list)
         self.d_id_rel = defaultdict(dict)
         self.d_grid_obj = {}  # currently not maintain all history
         self.grid_size = grid_size
@@ -122,10 +122,18 @@ class Canvas:
         (row, col) = random.choice(l_selected)
         return DICT_LOC_ABS2NAME[(row, col)], row, col
 
-    def get_obj_desc(self, obj,  mode_ref=None, mode_ref_loc=None):
-        features = self.get_obj_features(obj, mode_ref)
+    def get_obj_desc(self, obj,  mode_ref=None, mode_ref_loc=None, features=None):
+        if not features:
+            features = self.get_obj_features(obj, mode_ref)
         if len(features) > 0:
-            color, shape, loc_abs, loc_rel, obj_ref = random.choice(features)
+            # color, shape, loc_abs, loc_rel, obj_ref = random.choice(features)
+            random.shuffle(features)
+            color, shape, loc_abs, loc_rel, obj_ref = None, None, None, None, None
+            for color, shape, loc_abs, loc_rel, obj_ref in features:
+                if loc_abs is None and loc_rel is None:
+                    break
+                if loc_abs and loc_rel is None:
+                    break
             obj.features = {'color': obj.color, 'shape': obj.shape,
                             'loc_abs': loc_abs, 'loc_rel': loc_rel,
                             'obj_ref': obj_ref.to_dict() if obj_ref else None}
@@ -137,11 +145,15 @@ class Canvas:
         return self.get_obj_ref_desc(obj)
 
     def get_obj_ref_desc(self, obj, mode_ref=None):
-        features = self.get_obj_features(obj)
+        features = self.get_obj_features(obj, mode_ref)
         random.shuffle(features)
-        for feature in features:
-            if feature[2] is not None: # abs
+        for shape, color, loc_abs, loc_rel, obj_ref in features:
+            if loc_abs is None and loc_rel is None:
+                return self.get_obj_desc(obj, mode_ref, mode_ref, [(shape, color, None, None, None)])
+            if loc_abs is not None: # abs
                 return self.get_obj_desc(obj, mode_ref, mode_ref)
+            # if obj_ref: # obj_ref.row and obj_ref.col) in DICT_LOC_ABS2NAME:
+            #     return self.get_obj_desc(obj, mode_ref, mode_ref)
         tmpl = random.choice(DICT_TEMPLATES[OBJ_REF])
         s = Template(tmpl)
         for (row_ref, col_ref), loc_abs in DICT_LOC_ABS2NAME.items():
@@ -154,13 +166,18 @@ class Canvas:
         return ''
 
     def get_loc_desc(self, loc_abs, loc_rel, obj_ref, mode_ref=None, mode_loc=None):
-        options = []
+        # options = []
+        # if loc_abs:
+        #     options.append(LOC_ABS)
+        # if loc_rel and obj_ref:
+        #     options.append(LOC_REL)
+        # if mode_loc not in options and len(options) > 0:
+        #     mode_loc = random.choice(options)
+        mode_loc = None
         if loc_abs:
-            options.append(LOC_ABS)
-        if loc_rel and obj_ref:
-            options.append(LOC_REL)
-        if mode_loc not in options and len(options) > 0:
-            mode_loc = random.choice(options)
+            mode_loc = LOC_ABS
+        elif loc_rel:
+            mode_loc = LOC_REL
         if mode_loc is None:
             return ''
         tmpl = random.choice(DICT_TEMPLATES[mode_loc])
@@ -207,12 +224,10 @@ class Canvas:
         for ele in l_del:
             del self.d_id_rel[ele][obj_delete.id_]
 
-    def update_ref_obj_features(self, obj_rm):  # already removed
-        if (obj_rm.color, obj_rm.shape) in self.d_feature_id:
-            if len(self.d_feature_id) == 1:
-                id_ = self.d_feature_id[(obj_rm.color, obj_rm.shape)]
-                features = self.get_obj_features(self.d_id_obj[id_])
-                self.d_id_ref_feature[id_] = features
+    def update_ref_obj_features(self):  # after action completed
+        for id_, obj in self.d_id_obj.items():
+            features = self.get_obj_features(obj)
+            self.d_id_feature[id_] = features
 
     def is_action_viable(self, obj, act):
         if not (0 <= obj.row < self.grid_size and 0 <= obj.col < self.grid_size):
@@ -251,7 +266,6 @@ class Canvas:
             self.d_feature_id[(obj.color, obj.shape)].remove(obj.id_)
             self.d_feature_id[obj.color].remove(obj.id_)
             self.d_feature_id[obj.shape].remove(obj.id_)
-            self.update_ref_obj_features(obj)
             self.update_spatial_ref_delete(obj)
             return STATUS_SUCCESSFUL
         return STATUS_FAILED
@@ -270,11 +284,22 @@ class Canvas:
             loc_abs = DICT_LOC_ABS2NAME[(obj.row, obj.col)]
             lst.append((None, None, loc_abs, None, None))
         if obj.id_ in self.d_id_rel and len(self.d_id_rel[obj.id_]) > 1:
-            obj_ref_id, loc_rel = random.choice(list(self.d_id_rel[obj.id_].items()))
-            if obj_ref_id and obj_ref_id in self.d_id_obj:
-                obj_ref = self.d_id_obj[obj_ref_id]
-                if (obj_ref.row, obj_ref.col) in DICT_LOC_ABS2NAME:
-                    lst.append((None, None, None, loc_rel, obj_ref))
+            options = []
+            for obj_ref_id, loc_rel in self.d_id_rel[obj.id_].items():
+                if obj_ref_id and obj_ref_id in self.d_id_obj:
+                    obj_ref = self.d_id_obj[obj_ref_id]
+                    if (obj_ref.row, obj_ref.col) in DICT_LOC_ABS2NAME:
+                        options.append((loc_rel, obj_ref))
+                    elif obj_ref_id in self.d_id_feature:
+                        features = self.d_id_feature[obj_ref_id]
+                        for _, _, loc_abs_, loc_rel_, obj_ref_ in features:
+                            if loc_abs is None and loc_rel is None:
+                                options.append((loc_rel, obj_ref))
+                                break
+            if len(options) > 0:
+                random.shuffle(options)
+                loc_rel, obj_ref = options[0]
+                lst.append((None, None, None, loc_rel, obj_ref))
             else:
                 loc_rel, obj_ref = None, None
         else:

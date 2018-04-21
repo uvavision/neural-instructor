@@ -160,6 +160,7 @@ class Agent(object):
             self.message = self.generate_act_message_by_tmpl(MOVE)
             self.canvas.delete(obj_from)
             self.canvas.add(obj_to)
+        self.canvas.update_ref_obj_features()
         return activities
 
     def generate_act_message_by_tmpl(self, act=None):
@@ -205,13 +206,14 @@ def get_act_sequence(n_obj):
     return lst_act
 
 
-def generate_data(n_dial, is_viable=True, out_json=None):
+def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
     data = []
     for i in range(n_dial):
         d_dial = {'dial_id': i + 1, 'dialog_data': []}
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
-        agent = Agent(mode_loc=None, mode_ref=MODE_MIN, is_viable=is_viable)
+        lst_act = [ADD] * 10
+        agent = Agent(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         visualize_samples = []
         for turn, act in enumerate(lst_act):
             activities = agent.get_activity(act)
@@ -222,7 +224,7 @@ def generate_data(n_dial, is_viable=True, out_json=None):
             print(agent.canvas.get_desc())
             visualize_samples.append({"instruction": agent.message, "canvas": agent.canvas.get_desc()})
             agent.reset_activity()
-            agent.reset_config(mode_loc=None, mode_ref=MODE_MIN, is_viable=is_viable)
+            agent.reset_config(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         data.append(d_dial)
         # run the server: python canvas_render.py, visit the result at http://localhost:5001/dialog
         r = requests.post("http://localhost:5001/new_dialog", json=visualize_samples)
@@ -232,4 +234,4 @@ def generate_data(n_dial, is_viable=True, out_json=None):
 
 
 if __name__ == '__main__':
-    generate_data(1000)
+    generate_data(1)
