@@ -1,7 +1,7 @@
 from const import *
 import random
 import json
-from collections import OrderedDict, Counter
+from collections import OrderedDict, Counter, defaultdict
 from layout import (Object, Canvas, tmpl2txt_act)
 import requests
 
@@ -191,7 +191,7 @@ def get_act_sequence(n_obj):
     lst_act = [ADD]
     n_delete = random.randint(0, 3)
     n_add = n_obj + n_delete
-    n_move = random.randint(0, 2)
+    n_move = 0  # random.randint(0, 2)
     n_turn = n_move + n_delete + n_add
     print('#obj: {}, #turn: {}, #add: {}, #delete: {}, #move: {}'.format(n_obj, n_turn, n_add, n_delete, n_move))
     while len(lst_act) < n_turn:
@@ -206,25 +206,39 @@ def get_act_sequence(n_obj):
     return lst_act
 
 
-def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
+def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json='data.json'):
     data = []
     for i in range(n_dial):
         d_dial = {'dial_id': i + 1, 'dialog_data': []}
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
-        lst_act = [ADD] * 10
+        print(lst_act)
+        final_layout = []
+        d_id_act = OrderedDict()
         agent = Agent(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         visualize_samples = []
         for turn, act in enumerate(lst_act):
             activities = agent.get_activity(act)
-            d = {'turn': turn + 1,'config': agent.config2dict(), 'activities': activities}
+            d_id_act.setdefault(agent.obj.id_, []).append(agent.act)
+            d = {'turn': turn + 1, 'config': agent.config2dict(), 'activities': activities}
             d_dial['dialog_data'].append(d)
-            print('@@@', agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
-            print("###", agent.message)
-            print(agent.canvas.get_desc())
+            # print('@@@', agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
+            # print("###", agent.message)
+            # print(agent.canvas.get_desc())
             visualize_samples.append({"instruction": agent.message, "canvas": agent.canvas.get_desc()})
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
+        for k, v in d_id_act.items():
+            if v == [ADD]:
+                final_layout.append(agent.canvas.d_id_obj[k].to_dict())
+            elif v == [ADD, DELETE]:
+                continue
+            else:
+                final_layout = None
+                break
+        if is_viable and final_layout is None:
+            continue
+        d_dial['final_layout'] = final_layout
         data.append(d_dial)
         # run the server: python canvas_render.py, visit the result at http://localhost:5001/dialog
         r = requests.post("http://localhost:5001/new_dialog", json=visualize_samples)
@@ -234,4 +248,4 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
 
 
 if __name__ == '__main__':
-    generate_data(1)
+    generate_data(1000)
