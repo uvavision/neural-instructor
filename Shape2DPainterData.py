@@ -94,6 +94,9 @@ class Shape2DPainterData(torch.utils.data.Dataset):
         inst_data[1:len(inst_indices) + 1] = inst_indices
         return inst_data
 
+    def decode_inst(self, inst_data):
+        return ' '.join(map(self.ix_to_word.get, list(inst_data)))
+
     def encode_obj(self, obj):
         return np.array((self.color2num[obj['color']],
                          self.shape2num[obj['shape']],
@@ -134,7 +137,9 @@ def shape2d_painter_data_collate(data):
 
 def get_shape2d_painter_data_loader(split, batch_size):
     assert split in ['train', 'val', 'sample']
-    datafile = {'train': 'train.json', 'val': 'val.json', 'sample': 'sample.json'}[split]
+    datafile = {'train': 'train_add_remove.json',
+                'val': 'val_add_remove.json',
+                'sample': 'sample.json'}[split]
     dataset = Shape2DPainterData(datafile)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=shape2d_painter_data_collate)
     return dataloader

@@ -1,9 +1,12 @@
+import sys
+
 from const import *
 import random
 import json
 from collections import OrderedDict, Counter
 from layout import (Object, Canvas, tmpl2txt_act)
 import requests
+from tqdm import tqdm
 
 
 class Policy(object):
@@ -193,7 +196,7 @@ def get_act_sequence(n_obj):
     n_add = n_obj + n_delete
     n_move = random.randint(0, 2)
     n_turn = n_move + n_delete + n_add
-    print('#obj: {}, #turn: {}, #add: {}, #delete: {}, #move: {}'.format(n_obj, n_turn, n_add, n_delete, n_move))
+    # print('#obj: {}, #turn: {}, #add: {}, #delete: {}, #move: {}'.format(n_obj, n_turn, n_add, n_delete, n_move))
     while len(lst_act) < n_turn:
         d_ct = Counter(lst_act)
         ct_add, ct_delete, ct_move = d_ct[ADD], d_ct[DELETE], d_ct[MOVE]
@@ -206,32 +209,56 @@ def get_act_sequence(n_obj):
     return lst_act
 
 
+def is_level3_ref(instruction):
+    vals_abs = DICT_LOC_ABS2NAME.values()
+    vals_rel = DICT_LOC_DELTA2NAME.values()
+    count = 0
+    for w in instruction.split():
+        if w in vals_abs or w in vals_rel:
+            count += 1
+    assert count <= 3
+    return count == 3
+
+
 def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
     data = []
-    for i in range(n_dial):
+    count = 0
+    for i in tqdm(range(n_dial)):
         d_dial = {'dial_id': i + 1, 'dialog_data': []}
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
-        lst_act = [ADD] * 10
+        # FIXME
+        # lst_act = [ADD] * 10
+        while 'move' in lst_act:
+            lst_act.remove('move')
+        assert not 'move' in lst_act
         agent = Agent(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         visualize_samples = []
         for turn, act in enumerate(lst_act):
+            canvas_data = [v.get_info() for k, v in agent.canvas.d_id_obj.items()]
             activities = agent.get_activity(act)
-            d = {'turn': turn + 1,'config': agent.config2dict(), 'activities': activities}
-            d_dial['dialog_data'].append(d)
-            print('@@@', agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
-            print("###", agent.message)
-            print(agent.canvas.get_desc())
+            if is_level3_ref(activities[0]['message']) or random.random() < 0.2:
+                d = {'turn': turn + 1, 'config': agent.config2dict(), 'activities': activities, 'prev_canvas': canvas_data}
+                d_dial['dialog_data'].append(d)
+                count += 1
+            # print('@@@', agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
+            # print("###", agent.message)
+            # print(agent.canvas.get_desc())
             visualize_samples.append({"instruction": agent.message, "canvas": agent.canvas.get_desc()})
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         data.append(d_dial)
         # run the server: python canvas_render.py, visit the result at http://localhost:5001/dialog
-        r = requests.post("http://localhost:5001/new_dialog", json=visualize_samples)
-        r.raise_for_status()
+        # r = requests.post("http://vision.cs.virginia.edu:5001/new_dialog", json=visualize_samples)
+        # r.raise_for_status()
+    print("numer of instructions: {}".format(count))
     if out_json:
-        json.dump(data, open(out_json, 'w'), indent=4)
+        json.dump(data, open(out_json, 'w'))
 
 
 if __name__ == '__main__':
-    generate_data(1)
+    if len(sys.argv) == 2:
+        generate_data(50000, out_json=sys.argv[1])
+    else:
+        generate_data(10)
+
