@@ -36,11 +36,11 @@
 <div class="container">
     <p></p>
     {% for turn in data %}
+    <div class="section"><img src="" data={{ turn['prev_canvas'] }}></div>
     <p>instruction: {{ turn['instruction'] }}</p>
-    <div class="section">
-        <img src="" data={{ turn['canvas'] }}>
-    </div>
-    <p></p>
+    <div class="section"><img src="" data={{ turn['next_canvas'] }}></div>
+    <div class="section"><img src="" data={{ turn['final_canvas'] }}></div>
+    <p>=====================================================================</p>
     <p></p>
     <p></p>
     {% endfor %}

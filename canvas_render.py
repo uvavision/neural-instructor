@@ -28,6 +28,20 @@ instructor_predictions = [{
              'final_canvas': '#CANVAS-[{"left":10,"top":410,"width":80,"height":80,"label":"red","shape":"triangle"},{"left":110,"top":410,"width":80,"height":80,"label":"blue","shape":"rectangle"},{"left":10,"top":10,"width":80,"height":80,"label":"green","shape":"circle"},{"left":210,"top":310,"width":80,"height":80,"label":"blue","shape":"rectangle"},{"left":410,"top":410,"width":80,"height":80,"label":"green","shape":"rectangle"},{"left":210,"top":210,"width":80,"height":80,"label":"green","shape":"rectangle"},{"left":310,"top":310,"width":80,"height":80,"label":"red","shape":"triangle"},{"left":410,"top":10,"width":80,"height":80,"label":"red","shape":"triangle"},{"left":10,"top":310,"width":80,"height":80,"label":"green","shape":"rectangle"},{"left":110,"top":310,"width":80,"height":80,"label":"green","shape":"rectangle"}]',
              'predicted_instruction': 'add a red triangle to top-of the red triangle'}]
 
+
+def canvas_obj_str(objs):
+    grid_size = 100
+    layout = []
+    for obj in objs:
+        top = obj['row'] * grid_size + 10
+        left = obj['col'] * grid_size + 10
+        width = grid_size - 20
+        height = grid_size - 20
+        label = obj['color']
+        shape = obj['shape']
+        layout.append({"left": left, "top": top, "width": width, "height": height, "label": label, "shape": shape})
+    return '#CANVAS-' + str(layout).replace("'", '"').replace(' ', '')
+
 dialog_sample = []
 
 
@@ -52,8 +66,12 @@ def create_task():
 def new_dialog():
     global dialog_sample
     dialog_sample = request.json
+    for sample in dialog_sample:
+        sample['prev_canvas'] = canvas_obj_str(sample['prev_canvas'])
+        sample['next_canvas'] = canvas_obj_str(sample['next_canvas'])
+        sample['final_canvas'] = canvas_obj_str(sample['final_canvas'])
     return "OK"
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(debug=False, host='0.0.0.0', port=5001)

@@ -189,11 +189,11 @@ class Agent(object):
 
 def get_act_sequence(n_obj):
     lst_act = [ADD]
-    n_delete = random.randint(0, 3)
+    n_delete = random.randint(3, 5)
     n_add = n_obj + n_delete
     n_move = 0  # random.randint(0, 2)
     n_turn = n_move + n_delete + n_add
-    print('#obj: {}, #turn: {}, #add: {}, #delete: {}, #move: {}'.format(n_obj, n_turn, n_add, n_delete, n_move))
+    # print('#obj: {}, #turn: {}, #add: {}, #delete: {}, #move: {}'.format(n_obj, n_turn, n_add, n_delete, n_move))
     while len(lst_act) < n_turn:
         d_ct = Counter(lst_act)
         ct_add, ct_delete, ct_move = d_ct[ADD], d_ct[DELETE], d_ct[MOVE]
@@ -215,24 +215,29 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json='data.json
         print(lst_act)
         final_layout = []
         d_id_act = OrderedDict()
+        d_id_diag_data = OrderedDict()
         agent = Agent(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
-        visualize_samples = []
         for turn, act in enumerate(lst_act):
+            prev_canvas = [v.get_info() for k, v in agent.canvas.d_id_obj.items()]
             activities = agent.get_activity(act)
+            next_canvas = [v.get_info() for k, v in agent.canvas.d_id_obj.items()]
             d_id_act.setdefault(agent.obj.id_, []).append(agent.act)
-            d = {'turn': turn + 1, 'config': agent.config2dict(), 'activities': activities}
-            d_dial['dialog_data'].append(d)
+            d = {'turn': turn + 1, 'config': agent.config2dict(), 'activities': activities,
+                 'prev_canvas': prev_canvas, 'next_canvas': next_canvas}
+            d_id_diag_data.setdefault(agent.obj.id_, []).append(d)
             # print('@@@', agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
             # print("###", agent.message)
             # print(agent.canvas.get_desc())
-            visualize_samples.append({"instruction": agent.message, "canvas": agent.canvas.get_desc()})
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         for k, v in d_id_act.items():
             if v == [ADD]:
+                assert len(d_id_diag_data[k]) == 1
+                d_dial['dialog_data'].append(d_id_diag_data[k][0])
                 final_layout.append(agent.canvas.d_id_obj[k].to_dict())
             elif v == [ADD, DELETE]:
-                continue
+                assert len(d_id_diag_data[k]) == 2
+                d_dial['dialog_data'].append(d_id_diag_data[k][1])
             else:
                 final_layout = None
                 break
@@ -241,8 +246,14 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json='data.json
         d_dial['final_layout'] = final_layout
         data.append(d_dial)
         # run the server: python canvas_render.py, visit the result at http://localhost:5001/dialog
-        r = requests.post("http://localhost:5001/new_dialog", json=visualize_samples)
-        r.raise_for_status()
+        visualize_samples = []
+        for turn in d_dial['dialog_data']:
+            visualize_samples.append({"instruction": turn['activities'][0]['message'],
+                                      "prev_canvas": turn['prev_canvas'],
+                                      "next_canvas": turn['next_canvas'],
+                                      "final_canvas": d_dial['final_layout']})
+        # r = requests.post("http://localhost:5001/new_dialog", json=visualize_samples)
+        # r.raise_for_status()
     if out_json:
         json.dump(data, open(out_json, 'w'), indent=4)
 
