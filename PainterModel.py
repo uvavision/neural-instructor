@@ -53,6 +53,7 @@ class Shape2DPainterNet(nn.Module):
         self.use_mask = True
         # self.canvas_encoder = CanvasEncoder()
         self.hidden_size = 64
+        self.fc_act = nn.Linear(self.inst_encoder.rnn_size, 2)
         self.fc_color = nn.Linear(self.inst_encoder.rnn_size, 3)
         self.fc_shape = nn.Linear(self.inst_encoder.rnn_size, 3)
         self.fc_abs_loc = nn.Linear(self.inst_encoder.rnn_size, 2)
@@ -62,6 +63,7 @@ class Shape2DPainterNet(nn.Module):
         self.rewards = None
         self.saved_log_probs = None
         self.running_baseline = 0
+        self.saved_actions = None
 
     def loc_relative_predict(self, inst_embedding, canvas):
         offset = F.hardtanh(self.fc_offset(inst_embedding))  # Bx2
@@ -75,6 +77,7 @@ class Shape2DPainterNet(nn.Module):
 
     def forward(self, inst, prev_canvas, ref_obj, target_obj):
         inst_embedding = self.inst_encoder(inst) # Bx64
+        act_out = F.log_softmax(self.fc_act(inst_embedding), dim=1)
         color_out = F.log_softmax(self.fc_color(inst_embedding), dim=1)
         shape_out = F.log_softmax(self.fc_shape(inst_embedding), dim=1)
         loc_abs = self.fc_abs_loc(inst_embedding)
@@ -84,22 +87,24 @@ class Shape2DPainterNet(nn.Module):
         actions = m.sample()
         # print((torch.eq((ref_obj.sum(dim=1) < 0).long(), actions).sum().float() / ref_obj.size(0)).data[0])
         self.saved_log_probs = m.log_prob(actions)
+        self.saved_actions = actions.data
         actions = actions.float()
         # # loc_out = loc_abs * weight[:, 0:1] + loc_relative * weight[:, 1:2]
         # actions = (ref_obj.sum(dim=1) < 0).float()
         loc_out = loc_abs * actions.unsqueeze(1) + loc_relative * (1 - actions).unsqueeze(1)
-        return color_out, shape_out, loc_out[:, 0], loc_out[:, 1]
+        return act_out, color_out, shape_out, loc_out[:, 0], loc_out[:, 1]
 
 
 class Shape2DObjCriterion(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, model_out, target_obj, ref_obj):
+    def forward(self, model_out, act_target, target_obj, ref_obj):
         color_target = target_obj[:, 0]
         shape_target = target_obj[:, 1]
-        color_out, shape_out, row_out, col_out = model_out
-        loss = F.nll_loss(color_out, color_target) + \
+        act_out, color_out, shape_out, row_out, col_out = model_out
+        loss = F.nll_loss(act_out, act_target) + \
+               F.nll_loss(color_out, color_target) + \
                F.nll_loss(shape_out, shape_target) + \
                F.l1_loss(row_out, target_obj[:, 2].float()) + \
                F.l1_loss(col_out, target_obj[:, 3].float())
