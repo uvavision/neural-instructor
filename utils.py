@@ -1,4 +1,5 @@
 import hashlib
+import random
 
 # https://discuss.pytorch.org/t/adaptive-learning-rate/320/2
 def adjust_lr(optimizer, epoch, initial_lr, decay_rate=0.8):
@@ -16,3 +17,13 @@ def clip_gradient(optimizer, grad_clip):
 
 def get_hashcode(o):
     return hashlib.md5((str(o)).encode()).hexdigest()
+
+
+def alter(x, y):
+    return random.choice(list(set(y) - set([x])))
+
+
+def xs(o):
+    if o is None:
+        return ''
+    return str(o)

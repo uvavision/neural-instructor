@@ -1,22 +1,53 @@
 import random
-from collections import Counter, defaultdict, OrderedDict
-from utils import get_hashcode
+from collections import defaultdict
+from utils import get_hashcode, xs
 from string import Template
 import re
 from const import *
 
 
-def xs(o):
-    if o is None:
-        return ''
-    return str(o)
-
-
-def tmpl2txt_act(act, t_obj, t_loc_abs="", t_loc_rel=""):
-    tmpl = random.choice(DICT_TEMPLATES[act])
-    s = Template(tmpl)
-    text = s.substitute(obj=t_obj, loc_abs=t_loc_abs, loc_rel=t_loc_rel)
+def tmpl2txt_act(act, da, role, t_obj, t_loc_abs="", t_loc_rel=""):
+    if da == REQUEST and role == USER:
+        tmpl = random.choice(DICT_TEMPLATES[act])
+        s = Template(tmpl)
+        text = s.substitute(obj=t_obj, loc_abs=t_loc_abs, loc_rel=t_loc_rel)
     return re.sub(' +', ' ', text)  # remove duplicated spaces
+
+
+def tmpl2txt_da(role, da, act=None, d_para=None, is_viable=True):
+    text = ''
+    if da == REQUEST and role == USER:
+        tmpl = random.choice(DICT_TEMPLATES[act])
+        s = Template(tmpl)
+        text = s.substitute(obj=d_para[T_OBJ], loc_abs=d_para[T_LOC_ABS], loc_rel=d_para[T_LOC_ABS])
+    if da == REQUEST and role == AGENT:
+        tmpl = random.choice(DICT_TEMPLATES[(da, role)])
+        s = Template(tmpl)
+        text = s.substitute(obj=d_para[OBJ], loc_abs=d_para[LOC_ABS], loc_rel=d_para[LOC_REL])
+    if da == SELF_CORRECTION and role == USER:
+        if len(d_para) == 1:
+            tmpl = random.choice(DICT_TEMPLATES[(da, role, act, 0)])  #
+            k, v = list(d_para.items())[0]
+            s = Template(tmpl)
+            text = s.substitute(k=k, v=v)
+        elif len(d_para) == 2:
+            tmpl = random.choice(DICT_TEMPLATES[(da, role, act, 1)])  #
+            s = Template(tmpl)
+            k1, k2 = d_para.keys()
+            text = s.substitute(k1=k1, v1=d_para[k1], k2=k2, v2=d_para[k2])
+    if da == ASK_Q and role == AGENT:
+        if is_viable:
+            tmpl = random.choice(DICT_TEMPLATES[(da, role)])
+            s = Template(tmpl)
+            text = s.substitute(obj=d_para[OBJ], loc_abs=d_para[T_LOC_ABS], loc_rel=d_para[T_LOC_REL])
+        else:
+            tmpl = random.choice(DICT_TEMPLATES[(da, role, act)])
+            s = Template(tmpl)
+            text = s.substitute(t_loc_abs=d_para[T_LOC_ABS], t_loc_rel=d_para[T_LOC_REL])
+    if da in [CONFIRM, REJECT, END]:
+        text = random.choice(DICT_TEMPLATES[(da, role)])
+    text = re.sub(' +', ' ', text)
+    return text
 
 
 def get_rel_loc(obj1, obj2):
@@ -28,28 +59,38 @@ def get_rel_loc(obj1, obj2):
 
 
 class Object:
-    def __init__(self, color, shape, row, col):
+    def __init__(self, color=None, shape=None, row=None, col=None):
         self.color = color
         self.shape = shape
         self.row = row
         self.col = col
-        self.features = None
         self.id_ = self.get_id()
+        self.features = None
+        self.loc_abs = None
+        self.loc_rel = None
+        self.obj_ref = None
 
     def __str__(self):
         return '{}; {}; row: {}; col: {}'.format(self.color,
                 self.shape, self.row, self.col)
+
+    def set(self, d_in):
+        self.color = d_in[COLOR]
+        self.shape = d_in[SHAPE]
+        self.row = d_in[ROW]
+        self.col = d_in[COL]
+        self.id_ = self.get_id()
+        self.loc_abs = d_in[LOC_ABS] if LOC_ABS in d_in else None
+        self.loc_rel = d_in[LOC_REL] if LOC_REL in d_in else None
+        self.obj_ref = d_in[OBJ_REF] if OBJ_REF in d_in else None
 
     def get_id(self):
         id_ = get_hashcode([self.color, self.shape, self.row, self.col])
         return id_
 
     def to_dict(self):
-        d = {'color': self.color, 'shape': self.shape, 'row': self.row, 'col': self.col}
+        d = {COLOR: self.color, SHAPE: self.shape, ROW: self.row, COL: self.col, ID: self.id_}
         return d
-
-    def get_info(self):
-        return {'row': self.row, 'col': self.col, 'color': self.color, 'shape': self.shape}
 
 
 class Canvas:
@@ -64,7 +105,7 @@ class Canvas:
     def size(self):
         return len(self.d_id_obj)
 
-    def select_obj_ref_grid(self, select_empty=True, is_viable=True, excluded_grids=[]):
+    def select_grid_obj_ref(self, select_empty=True, is_viable=True, excluded_grids=[]):
         if is_viable and self.size() - len(excluded_grids) <= 0:
             return None, None, None, None
         options = []
@@ -77,56 +118,33 @@ class Canvas:
                     continue
                 if select_empty and is_viable:
                     if (row_adj, col_adj) not in self.d_grid_obj:
-                        options.append((obj_ref, row_adj, col_adj, loc_rel))
+                        options.append((row_adj, col_adj, obj_ref, loc_rel))
                 elif not select_empty and is_viable:
                     if (row_adj, col_adj) in self.d_grid_obj:
-                        options.append((obj_ref, row_adj, col_adj, loc_rel))
-        if not is_viable:
-            def f(x, y):
-                return random.choice(list(set(y) - set([x])))
-            # loc_abs, row, col = self.select_loc_abs(select_empty, is_viable)
-            # if loc_abs:
-            #     color = random.choice(COLORS)
-            #     shape = random.choice(SHAPES)
-            #     options.append(Object(color, shape, row, col))
-            if len(self.d_grid_obj) > 0: # wrong reference
-                (row, col), obj = random.choice(list(self.d_grid_obj.items()))
-                random_selector = random.uniform(0, 1)
-                if random_selector >= 0.5:
-                    color = f(obj.color, COLORS)
-                    shape = random.choice(SHAPES)
-                else:
-                    color = random.choice(COLORS)
-                    shape = f(obj.shape, SHAPES)
-                obj_ref = Object(color, shape, obj.row, obj.col)
-                for (row_d, col_d), loc_rel in DICT_LOC_DELTA2NAME.items():
-                    row_adj, col_adj = row - row_d, col - col_d
-                    options.append((obj_ref, row_adj, col_adj, loc_rel))
+                        options.append((row_adj, col_adj, obj_ref, loc_rel))
         if len(options) > 0:
             return random.choice(options)
         return None, None, None, None
 
-    def select_loc_abs(self, select_empty=True, is_viable=None):
+    def select_grid_loc_abs(self, select_empty=True, excluded_grids=[]):
         l_all = list(DICT_LOC_ABS2NAME.keys())
         l_not_empty = [e for e in self.d_grid_obj.keys() if e]
         l_empty_abs = list(set(l_all) - set(l_not_empty))
         l_not_empty_abs = list(set(l_not_empty).intersection(set(l_all)))
-        d_empty_viable = {(True, True): l_empty_abs, (False, True): l_not_empty_abs,
-                          (True, False): l_not_empty_abs, (False, False): l_empty_abs}
-        if is_viable is None:
-            l_selected = l_all
+        if select_empty:
+            l_selected = l_empty_abs
         else:
-            l_selected = d_empty_viable[(select_empty, is_viable)]
-        if not l_selected:
+            l_selected = l_not_empty_abs
+        l_selected = list(set(l_selected) - set(excluded_grids))
+        if l_selected is None or l_selected == []:
             return None, None, None
-        (row, col) = random.choice(l_selected)
-        return DICT_LOC_ABS2NAME[(row, col)], row, col
+        row, col = random.choice(l_selected)
+        return row, col, DICT_LOC_ABS2NAME[(row, col)]
 
     def get_obj_desc(self, obj,  mode_ref=None, mode_ref_loc=None, features=None):
         if not features:
             features = self.get_obj_features(obj, mode_ref)
         if len(features) > 0:
-            # color, shape, loc_abs, loc_rel, obj_ref = random.choice(features)
             random.shuffle(features)
             color, shape, loc_abs, loc_rel, obj_ref = None, None, None, None, None
             for color, shape, loc_abs, loc_rel, obj_ref in features:
@@ -134,9 +152,9 @@ class Canvas:
                     break
                 if loc_abs and loc_rel is None:
                     break
-            obj.features = {'color': obj.color, 'shape': obj.shape,
-                            'loc_abs': loc_abs, 'loc_rel': loc_rel,
-                            'obj_ref': obj_ref.to_dict() if obj_ref else None}
+            obj.features = {COLOR: obj.color, SHAPE: obj.shape,
+                            LOC_ABS: loc_abs, LOC_REL: loc_rel,
+                            OBJ_REF: obj_ref.to_dict() if obj_ref else None}
             tmpl = random.choice(DICT_TEMPLATES[OBJ])
             s = Template(tmpl)
             text = s.substitute(color=xs(color), shape=xs(shape))
@@ -165,14 +183,7 @@ class Canvas:
                 return text
         return ''
 
-    def get_loc_desc(self, loc_abs, loc_rel, obj_ref, mode_ref=None, mode_loc=None):
-        # options = []
-        # if loc_abs:
-        #     options.append(LOC_ABS)
-        # if loc_rel and obj_ref:
-        #     options.append(LOC_REL)
-        # if mode_loc not in options and len(options) > 0:
-        #     mode_loc = random.choice(options)
+    def get_loc_desc(self, loc_abs, loc_rel, obj_ref, mode_ref=None):
         mode_loc = None
         if loc_abs:
             mode_loc = LOC_ABS
@@ -203,11 +214,6 @@ class Canvas:
             layout.append({"left": left, "top": top, "width": width, "height": height, "label": label, "shape": shape})
         return '#CANVAS-' + str(layout).replace("'", '"').replace(' ', '')
 
-    def get_state_by_coordinates(self, obj):
-        if (obj.row, obj.col) in self.d_grid_obj:
-            return self.d_grid_obj[(obj.row, obj.col)]
-        return STATE_EMPTY
-
     def update_spatial_ref_add(self, obj_new):
         for id_, obj in self.d_id_obj.items():
             rel = get_rel_loc(obj, obj_new)
@@ -233,8 +239,7 @@ class Canvas:
         if not (0 <= obj.row < self.grid_size and 0 <= obj.col < self.grid_size):
             return False
         if act == ADD:
-            state = self.get_state_by_coordinates(obj)
-            if state == STATE_OCCU:
+            if (obj.row, obj.col) in self.d_grid_obj and self.d_grid_obj[(obj.row, obj.col)] is not None:
                 return False
             return True
         if act == DELETE:
@@ -269,12 +274,6 @@ class Canvas:
             self.update_spatial_ref_delete(obj)
             return STATUS_SUCCESSFUL
         return STATUS_FAILED
-
-    # def move(self, obj_from, obj_to):
-    #     if self.is_action_valid(obj_from, DELETE) and \
-    #        self.is_action_valid(obj_to, ADD):
-    #         return self.delete(obj_from) and self.add(obj_to)
-    #     return STATUS_FAILED
 
     def get_obj_features(self, obj, mode_ref=None):
         # feature: color, shape, loc_abs, loc_rel, obj_ref
