@@ -119,3 +119,26 @@ class Shape2DObjCriterion(nn.Module):
         # model.rewards = (rewards - rewards.mean())
         rewards = (rewards - rewards.mean())
         return loss, rewards
+
+def get_painter_model_prediction(painter_model, inst_samples, prev_canvas):
+    assert inst_samples.size(1) == 21
+    # [a, b, c, 0, d, 0] -> [a, b, c, 0, 0, 0]
+    masks = (inst_samples == 0)
+    for i in range(inst_samples.size(0)):
+        if masks[i].sum() > 0:
+            index = torch.nonzero(masks[i])[0, 0]
+            inst_samples[i, index:] = 0
+    samples_input = torch.zeros(inst_samples.size(0), inst_samples.size(1) + 2).long()
+    # [a, b, ...] -> [0, a, b, ...]
+    samples_input[:, 1:inst_samples.size(1) + 1] = inst_samples
+    samples_input = Variable(samples_input.cuda())
+    # vars = [Variable(var.data, volatile=True) for var in vars]
+    output = painter_model(samples_input, prev_canvas, ref_obj=None, target_obj=None)
+    act = torch.max(output[0].data, dim=1)[1]
+    prediction = [p.data for p in output[1:]]
+    target_obj = torch.stack([torch.max(prediction[0], dim=1)[1],
+                              torch.max(prediction[1], dim=1)[1],
+                              torch.round(prediction[2]).long(),
+                              torch.round(prediction[3]).long()], dim=1)
+    return act, target_obj
+
