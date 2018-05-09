@@ -58,15 +58,16 @@ class Shape2DPainterNet(nn.Module):
         self.use_mask = True
         # self.canvas_encoder = CanvasEncoder()
         self.hidden_size = 64
-        # self.fc_color = nn.Linear(self.inst_encoder.rnn_size, 3)
-        # self.fc_shape = nn.Linear(self.inst_encoder.rnn_size, 3)
+        self.fc_color = nn.Linear(self.inst_encoder.rnn_size, 3)
+        self.fc_shape = nn.Linear(self.inst_encoder.rnn_size, 3)
         # self.fc_abs_loc = nn.Linear(self.inst_encoder.rnn_size, 25)
         # self.fc_abs_loc = nn.Linear(self.inst_encoder.rnn_size, 2)
         # self.fc_loc_route = nn.Sequential(nn.Linear(self.inst_encoder.rnn_size, 32), nn.ReLU(), nn.Linear(32, 2))
         self.fc_ref_obj = nn.Sequential(nn.Linear(68, 32), nn.ReLU(), nn.Linear(32, 1))
-        self.fc_offset = nn.Linear(self.inst_encoder.rnn_size, 16)
+        # self.fc_offset = nn.Linear(self.inst_encoder.rnn_size, 2)
+        self.rel_loc_p = nn.Linear(self.inst_encoder.rnn_size, 8)
+        # self.fc_rel_loc = nn.Sequential(nn.Linear(2, 16), nn.Linear(16, 25))
         # self.fc_rel_loc = nn.Sequential(nn.Linear(2, 16), nn.ReLU(), nn.Linear(16, 25))
-        self.fc_rel_loc = nn.Sequential(nn.Linear(18, 16), nn.ReLU(), nn.Linear(16, 10))
         # self.fc_rel_loc = nn.Sequential(nn.Linear(2, 16), nn.ReLU(), nn.Linear(16, 25))
         self.rewards = None
         self.saved_log_probs = None
@@ -75,19 +76,56 @@ class Shape2DPainterNet(nn.Module):
         self.color_log_prob = None
         self.shape_log_prob = None
         self.loc_log_prob = None
+        self.att_log_prob = None
 
-    def loc_relative_predict(self, inst_embedding, canvas):
+    def loc_relative_predict1(self, inst_embedding, canvas, ref_obj):
         # offset = F.hardtanh(self.fc_offset(inst_embedding))  # Bx2
         offset = self.fc_offset(inst_embedding)  # Bx2
+        # inst2 = torch.unsqueeze(inst_embedding, 1)  # Bx1x64
+        # inst2 = inst2.repeat(1, 25, 1) # Bx25x64
+        # att = torch.cat([inst2, canvas], 2) # Bx25x68
+        # att = self.fc_ref_obj(att).squeeze() # Bx25
+        # weight = F.softmax(att, dim=1)
+        # # att_sample, self.att_log_prob = sample_probs(weight)
+        # # ref_obj = canvas.data.new(canvas.size(0), 2)
+        # # for i in range(canvas.size(0)):
+        # #     ref_obj[i] = canvas.data[i, att_sample[i], 2:]
+        # # ref_obj = Variable(ref_obj)
+        # ref_obj = torch.bmm(weight.unsqueeze(1), canvas).squeeze(1)
+        # return self.fc_rel_loc(offset + Variable(ref_obj.float().cuda())[:, 2:])
+        return self.fc_rel_loc(offset + Variable(ref_obj[:, 2:].float().cuda()))
+        # return self.fc_rel_loc(torch.cat([offset, ref_obj], dim=1))
+        # return self.fc_rel_loc(offset + ref_obj[:, 2:])
+        # return self.fc_rel_loc(torch.cat([offset, ref_obj[:, 2:]], dim=1))
+        # return ref_obj[:, 2:] + offset
+        # return self.fc_rel_loc(ref_obj[:, 2:] + offset)
+
+    def ref_obj_att(self, inst_embedding, canvas):
         inst2 = torch.unsqueeze(inst_embedding, 1)  # Bx1x64
         inst2 = inst2.repeat(1, 25, 1) # Bx25x64
         att = torch.cat([inst2, canvas], 2) # Bx25x68
         att = self.fc_ref_obj(att).squeeze() # Bx25
         weight = F.softmax(att, dim=1)
-        ref_obj = torch.bmm(weight.unsqueeze(1), canvas).squeeze(1)
-        return self.fc_rel_loc(torch.cat([offset, ref_obj[:, 2:]], dim=1))
-        # return ref_obj[:, 2:] + offset
-        # return self.fc_rel_loc(ref_obj[:, 2:] + offset)
+        att_sample, self.att_log_prob = sample_probs(weight)
+        self.att_sample = att_sample
+        self.att_weight = weight
+        ref_obj = torch.LongTensor(canvas.size(0), 4)
+        for i in range(canvas.size(0)):
+            ref_obj[i] = canvas.data[i, att_sample[i]].long().cpu()
+        return ref_obj
+
+    def loc_relative_predict(self, inst_embedding, canvas, ref_obj):
+        offsets = [(-1, 0), (1, 0), (0, 1), (0, -1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+        loc_probs = F.softmax(self.rel_loc_p(inst_embedding), dim=1)
+        loc_sample, self.loc_log_prob = sample_probs(loc_probs)
+        ref_obj_att = self.ref_obj_att(inst_embedding, canvas)
+        self.att_reward = (((ref_obj_att == ref_obj).sum(dim=1) == 4).float() - 0.5) * 2
+        loc_predict = ref_obj_att.new(ref_obj_att.size(0))
+        for i in range(ref_obj_att.size(0)):
+            offsetx, offsety = offsets[loc_sample[i]]
+            # loc_predict[i] = (ref_obj[i, 2] + offsetx) * 5 + (ref_obj[i, 3] + offsety)
+            loc_predict[i] = (ref_obj_att[i, 2] + offsetx) * 5 + (ref_obj_att[i, 3] + offsety)
+        return loc_predict
 
     def forward1(self, dialog):
 
@@ -148,25 +186,48 @@ class Shape2DPainterNet(nn.Module):
         # only consider the 4th turn
         prev_canvas = dialog[2][1]
         prev_canvas = Variable(prev_canvas.cuda())
-        inst, final_canvas, target, _ = dialog[3]
-        # inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
+        inst, final_canvas, target, ref,  _ = dialog[3]
+        inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
         # final_canvas = final_canvas.long()
         inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
-        # color_probs = F.softmax(self.fc_color(inst_embedding), dim=1)
-        # color_sample, self.color_log_prob = sample_probs(color_probs)
-        # shape_probs = F.softmax(self.fc_shape(inst_embedding), dim=1)
-        # shape_sample, self.shape_log_prob = sample_probs(shape_probs)
+        color_probs = F.softmax(self.fc_color(inst_embedding), dim=1)
+        color_sample, self.color_log_prob = sample_probs(color_probs)
+        shape_probs = F.softmax(self.fc_shape(inst_embedding), dim=1)
+        shape_sample, self.shape_log_prob = sample_probs(shape_probs)
 
-        if False:
-            target = Variable(target.float().cuda())
-            loc_rel_out = self.loc_relative_predict(inst_embedding, prev_canvas)
-            loss = F.l1_loss(loc_rel_out[:, 0], target[:, 2]) +\
-                   F.l1_loss(loc_rel_out[:, 1], target[:, 3])
-            return loss.mean(), loss.data.mean()
-        else:
-            # loc_rel_out = self.loc_relative_predict(inst_embedding, prev_canvas)
-            # loc_logprobs = F.log_softmax(loc_rel_out, dim=1)
-            # # loc_logprobs = F.log_softmax(self.fc_abs_loc(inst_embedding), dim=1)
+        # if False:
+        #     target = Variable(target.float().cuda())
+        #     loc_rel_out = self.loc_relative_predict(inst_embedding, prev_canvas)
+        #     loss = F.l1_loss(loc_rel_out[:, 0], target[:, 2]) +\
+        #            F.l1_loss(loc_rel_out[:, 1], target[:, 3])
+        #     return loss.mean(), loss.data.mean()
+        # else:
+        #     loc_rel_out = self.loc_relative_predict(inst_embedding, prev_canvas, ref_obj=ref)
+        #     loc_logprobs = F.log_softmax(loc_rel_out, dim=1)
+        #     predict_target = torch.LongTensor(loc_logprobs.size(0), 1)
+        #     for i in range(loc_logprobs.size(0)):
+        #         predict_target[i, 0] = target[i, 2] * 5 + target[i, 3]
+        #     accuracy = (torch.max(loc_logprobs.data.cpu(), dim=1)[1] == predict_target.squeeze()).float().mean()
+        #     predict_target = Variable(predict_target.cuda())
+        #     # reward = loc_logprobs.gather(1, predict_target).data
+        #     nll = -loc_logprobs.gather(1, predict_target).mean()
+        #     return nll, accuracy
+
+        #     # att_loss = -(self.att_log_prob * Variable(reward)).mean()
+        #     # return (nll + att_loss), accuracy
+        #
+        #     # loc_rel_out = self.loc_relative_predict(inst_embedding, prev_canvas)
+        #     # row_logprobs = F.log_softmax(loc_rel_out[:, :5], dim=1)
+        #     # col_logprobs = F.log_softmax(loc_rel_out[:, 5:], dim=1)
+        #     # row_target = Variable(target[:, 2].long().cuda())
+        #     # col_target = Variable(target[:, 3].long().cuda())
+        #     # row_match = torch.max(row_logprobs.data, dim=1)[1] == row_target.data
+        #     # col_match = torch.max(col_logprobs.data, dim=1)[1] == col_target.data
+        #     # accuracy = (row_match & col_match).float().mean()
+        #     # loss = -row_logprobs.gather(1, row_target.unsqueeze(1)).mean() - \
+        #     #        col_logprobs.gather(1, col_target.unsqueeze(1)).mean()
+        #     # return loss, accuracy
+
             # predict_target = torch.LongTensor(loc_logprobs.size(0), 1)
             # for i in range(loc_logprobs.size(0)):
             #     predict_target[i, 0] = target[i, 2] * 5 + target[i, 3]
@@ -175,33 +236,22 @@ class Shape2DPainterNet(nn.Module):
             # loss = -loc_logprobs.gather(1, predict_target)
             # loc_predic = torch.max(loc_logprobs, dim=1)[1]
             # return loss.mean(), accuracy
-            loc_rel_out = self.loc_relative_predict(inst_embedding, prev_canvas)
-            row_logprobs = F.log_softmax(loc_rel_out[:, :5], dim=1)
-            col_logprobs = F.log_softmax(loc_rel_out[:, 5:], dim=1)
-            row_target = Variable(target[:, 2].long().cuda())
-            col_target = Variable(target[:, 3].long().cuda())
-            row_match = torch.max(row_logprobs.data, dim=1)[1] == row_target.data
-            col_match = torch.max(col_logprobs.data, dim=1)[1] == col_target.data
-            accuracy = (row_match & col_match).float().mean()
-            loss = -row_logprobs.gather(1, row_target.unsqueeze(1)).mean() - \
-                   col_logprobs.gather(1, col_target.unsqueeze(1)).mean()
-            return loss, accuracy
-            # predict_target = torch.LongTensor(loc_logprobs.size(0), 1)
-            # for i in range(loc_logprobs.size(0)):
-            #     predict_target[i, 0] = target[i, 2] * 5 + target[i, 3]
-            # accuracy = (torch.max(loc_logprobs.data.cpu(), dim=1)[1] == predict_target.squeeze()).float().mean()
-            # predict_target = Variable(predict_target.cuda())
-            # loss = -loc_logprobs.gather(1, predict_target)
-            # loc_predic = torch.max(loc_logprobs, dim=1)[1]
-            # return loss.mean(), accuracy
 
-
-        loc_probs = F.softmax(self.fc_abs_loc(inst_embedding), dim=1)
-        loc_sample, self.loc_log_prob = sample_probs(loc_probs)
-        loc_target = torch.LongTensor(loc_sample.size(0))
-        for i in range(loc_sample.size(0)):
+        # loc_probs = F.softmax(self.loc_relative_predict(inst_embedding, prev_canvas, ref_obj=ref), dim=1)
+        # # loc_probs = F.softmax(self.fc_abs_loc(inst_embedding), dim=1)
+        # loc_sample, self.loc_log_prob = sample_probs(loc_probs)
+        # loc_target = torch.LongTensor(loc_sample.size(0))
+        # for i in range(loc_sample.size(0)):
+        #     loc_target[i] = target[i, 2] * 5 + target[i, 3]
+        # loc_rewards = ((loc_sample.cpu() == loc_target).float() - 0.5) * 2
+        # return loc_rewards
+        loc_predict = self.loc_relative_predict(inst_embedding, prev_canvas, ref_obj=ref)
+        loc_target = torch.LongTensor(loc_predict.size(0))
+        for i in range(loc_predict.size(0)):
             loc_target[i] = target[i, 2] * 5 + target[i, 3]
-        loc_rewards = ((loc_sample.cpu() == loc_target).float() - 0.5) * 2
+        # loc_rewards = (loc_predict.cpu() == loc_target).float()
+        loc_rewards = ((loc_predict.cpu() == loc_target).float() - 0.5) * 2
+        # return loc_rewards
 
         color_rewards = loc_rewards.new(loc_rewards.size())
         color_rewards.fill_(0)
@@ -211,6 +261,7 @@ class Shape2DPainterNet(nn.Module):
             if loc_rewards[i] > 0:
                 color_rewards[i] = 1 if color_sample[i] == target[i, 0] else -1
                 shape_rewards[i] = 1 if shape_sample[i] == target[i, 1] else -1
+        return color_rewards, shape_rewards, loc_rewards
 
         # canvas_predict = final_canvas.new(final_canvas.size())
         # canvas_predict.fill_(-1)
@@ -224,7 +275,7 @@ class Shape2DPainterNet(nn.Module):
         # # for now just consider one step
         # rewards = (((torch.eq(canvas_predict, final_canvas).sum(dim=2) == 4).sum(dim=1) == 25).float() - 0.5) * 2
         # # rewards = (((torch.eq(canvas_predict[:, :, 2:], final_canvas[:, :, 2:]).sum(dim=2) == 2).sum(dim=1) == 25).float() - 0.5) * 2
-        return color_rewards, shape_rewards, loc_rewards
+        # return color_rewards, shape_rewards, loc_rewards
         # return canvas_predict, final_canvas
 
 

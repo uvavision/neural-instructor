@@ -15,21 +15,7 @@ from pymongo import MongoClient
 from os import sys, path
 from tqdm import tqdm
 from random import shuffle
-from const import DICT_LOC_DELTA2NAME
-from const import DICT_LOC_ABS2NAME
-
-ABS_REF_NAMES = DICT_LOC_ABS2NAME.values()
-REL_REF_NAMES = DICT_LOC_DELTA2NAME.values()
-# e.g. please remove the circle one from the canvas
-INST_LOCNONE = 0
-# e.g. add a blue triangle at top-right of the canvas
-INST_ABS = 1
-# e.g. add a blue triangle at left-of the blue circle
-INST_REL = 2
-# e.g. add a blue triangle at left-of the object at top-right of the canvas
-INST_REL_ABS = 3
-# e.g. add a blue triangle at left-of the object at top of bottom-left location of the canvas
-INST_REL_REL_ABS = 4
+from data_utils import *
 
 
 # %%
@@ -45,24 +31,6 @@ def render_canvas(objects):
         shape = obj['shape']
         layout.append({"left": left, "top": top, "width": width, "height": height, "label": label, "shape": shape})
     return '#CANVAS-' + str(layout).replace("'", '"').replace(' ', '')
-
-
-def inst_ref_type(instruction):
-    abs_refs = 0
-    rel_refs = 0
-    for w in instruction.split():
-        abs_refs += (w in ABS_REF_NAMES)
-        rel_refs += (w in REL_REF_NAMES)
-    if abs_refs == 1 and rel_refs == 0:
-        return INST_ABS
-    elif abs_refs == 0 and rel_refs == 1:
-        return INST_REL
-    elif abs_refs == 1 and rel_refs == 1:
-        return INST_REL_ABS
-    elif abs_refs == 1 and rel_refs == 2:
-        return INST_REL_REL_ABS
-    else:
-        return INST_LOCNONE
 
 
 def is_level3_ref(instruction):

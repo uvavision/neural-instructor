@@ -68,7 +68,10 @@ class Shape2DPainterData(torch.utils.data.Dataset):
             inst_data = self.encode_inst(activity['message'])
             current_canvas_data = self.encode_canvas(turn['current_canvas'])
             target_obj_data = self.encode_obj(activity['obj']).astype(np.int64)
-            output.append({'turn': turn_ix, 'inst': inst_data, 'canvas': current_canvas_data, 'target': target_obj_data})
+            ref_obj_data = None
+            if activity['features']['obj_ref']:
+                ref_obj_data = self.encode_obj(activity['features']['obj_ref']).astype(np.int64)
+            output.append({'turn': turn_ix, 'inst': inst_data, 'canvas': current_canvas_data, 'target': target_obj_data, 'ref_obj': ref_obj_data})
         return output
 
         # final_canvas_data = self.encode_canvas(raw_data['final_canvas'])
@@ -134,9 +137,14 @@ def shape2d_painter_data_collate(dialogs):
         inst_data = torch.from_numpy(np.stack([turn['inst'] for turn in batch_turn]))
         canvas_data = torch.from_numpy(np.stack([turn['canvas'] for turn in batch_turn]))
         target_data = torch.from_numpy(np.stack([turn['target'] for turn in batch_turn]))
+        ref_obj_data = None
+        try:
+            ref_obj_data = torch.from_numpy(np.stack([turn['ref_obj'] for turn in batch_turn]))
+        except:
+            pass
         turn_data = torch.from_numpy(np.stack([turn['turn'] for turn in batch_turn]))
         assert (turn_data - turn_data[0]).abs().sum() == 0
-        output.append([inst_data, canvas_data, target_data, turn_data])
+        output.append([inst_data, canvas_data, target_data, ref_obj_data, turn_data])
     return output
 
 def get_shape2d_painter_data_loader(split, batch_size):

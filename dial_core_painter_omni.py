@@ -7,6 +7,7 @@ from collections import OrderedDict, Counter
 from layout import (Object, Canvas, tmpl2txt_act)
 import requests
 from tqdm import tqdm
+from data_utils import *
 
 
 class Policy(object):
@@ -237,6 +238,7 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
         assert not 'delete' in lst_act
         agent = Agent(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         visualize_samples = []
+        turn_rel_ref = False
         for turn, act in enumerate(lst_act):
             canvas_data = [v.get_info() for k, v in agent.canvas.d_id_obj.items()]
             activities = agent.get_activity(act)
@@ -253,18 +255,23 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
             visualize_samples.append({"instruction": agent.message, "canvas": agent.canvas.get_desc()})
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
-        data.append(d_dial)
+            if not turn_rel_ref and turn + 1 == 4 and inst_ref_type(activities[0]['message']) == INST_REL:
+                turn_rel_ref = True
+                break
+        if turn_rel_ref:
+            data.append(d_dial)
         # run the server: python canvas_render.py, visit the result at http://localhost:5001/dialog
         # r = requests.post("http://vision.cs.virginia.edu:5001/new_dialog", json=visualize_samples)
         # r.raise_for_status()
     print("numer of instructions: {}".format(count))
     if out_json:
+        print("number of dialogs: {}".format(len(data)))
         json.dump(data, open(out_json, 'w'), indent=2)
 
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
-        generate_data(50000, out_json=sys.argv[1])
+        generate_data(5000, out_json=sys.argv[1])
     else:
         generate_data(10)
 

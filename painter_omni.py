@@ -17,7 +17,7 @@ parser.add_argument('--batch-size', type=int, default=256, metavar='N',
                     help='input batch size for training (default: 64)')
 parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                     help='input batch size for testing (default: 1000)')
-parser.add_argument('--epochs', type=int, default=40, metavar='N',
+parser.add_argument('--epochs', type=int, default=200, metavar='N',
                     help='number of epochs to train (default: 10)')
 parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
                     help='learning rate (default: 0.01)')
@@ -77,6 +77,7 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('painter_model_new_level3/model_20.pth'))
 # model.load_state_dict(torch.load('painter_model_new_level_combined//model_20.pth'))
 # model.load_state_dict(torch.load('painter_model_new_add_remove///model_20.pth'))
+# model.load_state_dict(torch.load('painter-omni///model_200.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
@@ -87,6 +88,11 @@ model.cuda()
 optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0)
 # optimizer = optim.Adam(model_fc_loc_route.parameters(), lr=args.lr, weight_decay=0)
 
+def adjust_lr(optimizer, epoch, initial_lr, decay_rate=0.8):
+    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
+    lr = initial_lr * (0.8 ** (epoch // 5))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
 
 def train(epoch):
     # adjust_lr(optimizer, epoch, args.lr)
@@ -106,29 +112,44 @@ def train(epoch):
         #     print("\n")
         optimizer.zero_grad()
 
-        # loss, accuracy = model(dialog)
+        # loss, accuracy = model(dialog, train_loader.dataset.ix_to_word)
         # loss.backward()
 
-        color_reward, shape_reward, loc_reward = model(dialog)
+        # loc_reward = model(dialog, train_loader.dataset.ix_to_word)
+        # loc_reward = Variable(loc_reward.cuda())
+        # # loss = (-model.loc_log_prob * loc_reward).sum()
+        # # loss = (-model.loc_log_prob * loc_reward).sum() + \
+        # #        (-model.att_log_prob * loc_reward).sum()
+        # loss = (-model.loc_log_prob * loc_reward).sum() + \
+        #        (-model.att_log_prob * Variable(model.att_reward.cuda())).sum()
+        # # loss = (-model.loc_log_prob * loc_reward).sum() + (-model.att_log_prob * Variable(model.att_reward.cuda())).sum()
+        # loss.backward()
+
+        color_reward, shape_reward, loc_reward = model(dialog, train_loader.dataset.ix_to_word)
         color_reward, shape_reward, loc_reward = Variable(color_reward.cuda()), Variable(shape_reward.cuda()), Variable(loc_reward.cuda())
-        # loss = - (model.color_log_prob * color_reward + model.shape_log_prob * shape_reward + model.loc_log_prob * loc_reward).sum()
-        # loss = (-(model.color_log_prob + model.shape_log_prob + model.loc_log_prob)* loc_reward).sum()
         loss = (-model.loc_log_prob * loc_reward).sum() + \
                (-model.color_log_prob * color_reward).sum() + \
-               (-model.shape_log_prob * shape_reward).sum()
+               (-model.shape_log_prob * shape_reward).sum() + \
+               (-model.att_log_prob * loc_reward).sum()
         loss.backward()
+
         # # loss, rewards = loss_fn(output, act, target_obj, ref_obj=None)
         # policy_loss = (-model.saved_log_probs * Variable(rewards)).sum()
         # (loss + policy_loss).backward()
         clip_gradient(optimizer, 0.1)
         optimizer.step()
         if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)] color_reward: {}, shape_reward: {}, loc_reward: {}'.format(
-                epoch, batch_idx * args.batch_size, len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), color_reward.data.mean(), shape_reward.data.mean(), loc_reward.data.mean()))
             # print('Train Epoch: {} [{}/{} ({:.0f}%)]\tloss: {} accuracy: {}'.format(
             #     epoch, batch_idx * args.batch_size, len(train_loader.dataset),
             #            100. * batch_idx / len(train_loader), loss.data[0], accuracy))
+
+            # print('Train Epoch: {} [{}/{} ({:.0f}%)] loc_reward: {} att_reward: {}'.format(
+            #     epoch, batch_idx * args.batch_size, len(train_loader.dataset),
+            #            100. * batch_idx / len(train_loader), loc_reward.data.mean(), model.att_reward.mean()))
+
+            print('Train Epoch: {} [{}/{} ({:.0f}%)] color_reward: {:.3f}, shape_reward: {:.3f}, loc_reward: {:.3f}, att_reward: {:.3f}'.format(
+                epoch, batch_idx * args.batch_size, len(train_loader.dataset),
+                       100. * batch_idx / len(train_loader), color_reward.data.mean(), shape_reward.data.mean(), loc_reward.data.mean(), model.att_reward.mean()))
 
 
 def model_test():
@@ -187,6 +208,7 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    # torch.save(model.state_dict(), 'painter_model_new_add_remove/model_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 't/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'painter-omni-continue/model_{}.pth'.format(epoch))
 # #     # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
 
