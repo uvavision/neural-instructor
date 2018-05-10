@@ -98,33 +98,7 @@ def train(epoch):
     # adjust_lr(optimizer, epoch, args.lr)
     model.train()
     for batch_idx, dialog in enumerate(train_loader):
-        # for ix in range(args.batch_size):
-        #     # ix = random.randint(0, args.batch_size-1)
-        #     inst_str = ' '.join(map(train_loader.dataset.ix_to_word.get, list(inst[ix])))
-        #     next_obj_color = train_loader.dataset.num2color[target_obj[ix][0]]
-        #     next_obj_shape = train_loader.dataset.num2shape[target_obj[ix][1]]
-        #     print(inst_str)
-        #     print("target obj: {} {} {} {}".format(next_obj_color, next_obj_shape, target_obj[ix][2], target_obj[ix][3]))
-        #     if ref_obj[ix].sum() > 0:
-        #         ref_obj_color = train_loader.dataset.num2color[ref_obj[ix][0]]
-        #         ref_obj_shape = train_loader.dataset.num2shape[ref_obj[ix][1]]
-        #         print("ref obj: {} {} {} {}".format(ref_obj_color, ref_obj_shape, ref_obj[ix][2], ref_obj[ix][3]))
-        #     print("\n")
         optimizer.zero_grad()
-
-        # loss, accuracy = model(dialog, train_loader.dataset.ix_to_word)
-        # loss.backward()
-
-        # loc_reward = model(dialog, train_loader.dataset.ix_to_word)
-        # loc_reward = Variable(loc_reward.cuda())
-        # # loss = (-model.loc_log_prob * loc_reward).sum()
-        # # loss = (-model.loc_log_prob * loc_reward).sum() + \
-        # #        (-model.att_log_prob * loc_reward).sum()
-        # loss = (-model.loc_log_prob * loc_reward).sum() + \
-        #        (-model.att_log_prob * Variable(model.att_reward.cuda())).sum()
-        # # loss = (-model.loc_log_prob * loc_reward).sum() + (-model.att_log_prob * Variable(model.att_reward.cuda())).sum()
-        # loss.backward()
-
         model(dialog, train_loader.dataset.ix_to_word)
         losses = []
         for log_prob, reward in zip(model.color_log_probs, model.color_rewards):
@@ -138,9 +112,6 @@ def train(epoch):
                 losses.append((-log_prob * Variable(reward.cuda())).sum())
         sum(losses).backward()
 
-        # # loss, rewards = loss_fn(output, act, target_obj, ref_obj=None)
-        # policy_loss = (-model.saved_log_probs * Variable(rewards)).sum()
-        # (loss + policy_loss).backward()
         clip_gradient(optimizer, 0.1)
         optimizer.step()
         if batch_idx % args.log_interval == 0:
