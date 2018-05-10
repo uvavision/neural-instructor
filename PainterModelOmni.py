@@ -60,12 +60,10 @@ class Shape2DPainterNet(nn.Module):
         self.hidden_size = 64
         self.fc_color = nn.Linear(self.inst_encoder.rnn_size, 3)
         self.fc_shape = nn.Linear(self.inst_encoder.rnn_size, 3)
-        # self.fc_abs_loc = nn.Linear(self.inst_encoder.rnn_size, 25)
-        # self.fc_abs_loc = nn.Linear(self.inst_encoder.rnn_size, 2)
-        # self.fc_loc_route = nn.Sequential(nn.Linear(self.inst_encoder.rnn_size, 32), nn.ReLU(), nn.Linear(32, 2))
+        self.fc_abs_loc = nn.Linear(self.inst_encoder.rnn_size, 25)
         self.fc_ref_obj = nn.Sequential(nn.Linear(68, 32), nn.ReLU(), nn.Linear(32, 1))
-        # self.fc_offset = nn.Linear(self.inst_encoder.rnn_size, 2)
         self.rel_loc_p = nn.Linear(self.inst_encoder.rnn_size, 8)
+        # self.fc_offset = nn.Linear(self.inst_encoder.rnn_size, 2)
         # self.fc_rel_loc = nn.Sequential(nn.Linear(2, 16), nn.Linear(16, 25))
         # self.fc_rel_loc = nn.Sequential(nn.Linear(2, 16), nn.ReLU(), nn.Linear(16, 25))
         # self.fc_rel_loc = nn.Sequential(nn.Linear(2, 16), nn.ReLU(), nn.Linear(16, 25))
@@ -106,163 +104,91 @@ class Shape2DPainterNet(nn.Module):
         att = torch.cat([inst2, canvas], 2) # Bx25x68
         att = self.fc_ref_obj(att).squeeze() # Bx25
         weight = F.softmax(att, dim=1)
-        att_sample, self.att_log_prob = sample_probs(weight)
+        att_sample, att_log_prob = sample_probs(weight)
         self.att_sample = att_sample
         self.att_weight = weight
         ref_obj = torch.LongTensor(canvas.size(0), 4)
         for i in range(canvas.size(0)):
             ref_obj[i] = canvas.data[i, att_sample[i]].long().cpu()
-        return ref_obj
+        return ref_obj, att_log_prob
 
     def loc_relative_predict(self, inst_embedding, canvas, ref_obj):
         offsets = [(-1, 0), (1, 0), (0, 1), (0, -1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
         loc_probs = F.softmax(self.rel_loc_p(inst_embedding), dim=1)
-        loc_sample, self.loc_log_prob = sample_probs(loc_probs)
-        ref_obj_att = self.ref_obj_att(inst_embedding, canvas)
-        self.att_reward = (((ref_obj_att == ref_obj).sum(dim=1) == 4).float() - 0.5) * 2
+        loc_sample, loc_log_prob = sample_probs(loc_probs)
+        ref_obj_att, att_log_prob = self.ref_obj_att(inst_embedding, canvas)
+        att_reward = (((ref_obj_att == ref_obj).sum(dim=1) == 4).float() - 0.5) * 2
         loc_predict = ref_obj_att.new(ref_obj_att.size(0))
         for i in range(ref_obj_att.size(0)):
             offsetx, offsety = offsets[loc_sample[i]]
             # loc_predict[i] = (ref_obj[i, 2] + offsetx) * 5 + (ref_obj[i, 3] + offsety)
             loc_predict[i] = (ref_obj_att[i, 2] + offsetx) * 5 + (ref_obj_att[i, 3] + offsety)
-        return loc_predict
+        return loc_predict, loc_log_prob, att_log_prob, att_reward
 
-    def forward1(self, dialog):
-
-        final_canvas = None
-        for ix, turn in enumerate(dialog):
-            inst, final_canvas, target, _ = turn
-            final_canvas = final_canvas.long()
-            inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
-            color_probs = F.softmax(self.fc_color(inst_embedding), dim=1)
-            color_sample, self.color_log_prob = sample_probs(color_probs)
-            shape_probs = F.softmax(self.fc_shape(inst_embedding), dim=1)
-            shape_sample, self.shape_log_prob = sample_probs(shape_probs)
-
-
-            # loc_logprobs = F.log_softmax(self.fc_abs_loc(inst_embedding), dim=1)
-            # predict_target = torch.LongTensor(loc_logprobs.size(0), 1)
-            # for i in range(loc_logprobs.size(0)):
-            #     predict_target[i, 0] = target[i, 2] * 5 + target[i, 3]
-            # accuracy = (torch.max(loc_logprobs.data.cpu(), dim=1)[1] == predict_target.squeeze()).float().mean()
-            # predict_target = Variable(predict_target.cuda())
-            # loss = -loc_logprobs.gather(1, predict_target)
-            # loc_predic = torch.max(loc_logprobs, dim=1)[1]
-            # return loss.mean(), accuracy
-
-
-            loc_probs = F.softmax(self.fc_abs_loc(inst_embedding), dim=1)
-            loc_sample, self.loc_log_prob = sample_probs(loc_probs)
-            loc_target = torch.LongTensor(loc_sample.size(0))
-            for i in range(loc_sample.size(0)):
-                loc_target[i] = target[i, 2] * 5 + target[i, 3]
-            loc_rewards = ((loc_sample.cpu() == loc_target).float() - 0.5) * 2
-
-            color_rewards = loc_rewards.new(loc_rewards.size())
-            color_rewards.fill_(0)
-            shape_rewards = loc_rewards.new(loc_rewards.size())
-            shape_rewards.fill_(0)
-            for i in range(loc_rewards.size(0)):
-                if loc_rewards[i] > 0:
-                    color_rewards[i] = 1 if color_sample[i] == target[i, 0] else -1
-                    shape_rewards[i] = 1 if shape_sample[i] == target[i, 1] else -1
-
-            # canvas_predict = final_canvas.new(final_canvas.size())
-            # canvas_predict.fill_(-1)
-            # for i in range(canvas_predict.size(0)):
-            # #     assert torch.equal(final_canvas[i, target[i, 2] * 5 + target[i, 3]], target[i])
-            #     loc = loc_sample[i]
-            #     canvas_predict[i, loc, 0] = color_sample[i]
-            #     canvas_predict[i, loc, 1] = shape_sample[i]
-            #     canvas_predict[i, loc, 2] = loc // 5
-            #     canvas_predict[i, loc, 3] = loc % 5
-            # # for now just consider one step
-            # rewards = (((torch.eq(canvas_predict, final_canvas).sum(dim=2) == 4).sum(dim=1) == 25).float() - 0.5) * 2
-            # # rewards = (((torch.eq(canvas_predict[:, :, 2:], final_canvas[:, :, 2:]).sum(dim=2) == 2).sum(dim=1) == 25).float() - 0.5) * 2
-            return color_rewards, shape_rewards, loc_rewards
-            # return canvas_predict, final_canvas
+    def loc_abs_predict(self, inst_embedding):
+        loc_probs = F.softmax(self.fc_abs_loc(inst_embedding), dim=1)
+        loc_sample, loc_log_prob = sample_probs(loc_probs)
+        return loc_sample, loc_log_prob
 
     def forward(self, dialog, ix_to_word):
-        # only consider the 4th turn
-        prev_canvas = dialog[2][1]
-        prev_canvas = Variable(prev_canvas.cuda())
-        inst, final_canvas, target, ref,  _ = dialog[3]
-        inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
-        # final_canvas = final_canvas.long()
-        inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
-        color_probs = F.softmax(self.fc_color(inst_embedding), dim=1)
-        color_sample, self.color_log_prob = sample_probs(color_probs)
-        shape_probs = F.softmax(self.fc_shape(inst_embedding), dim=1)
-        shape_sample, self.shape_log_prob = sample_probs(shape_probs)
+        self.color_rewards = []
+        self.shape_rewards = []
+        self.loc_rewards = []
+        self.color_log_probs = []
+        self.shape_log_probs = []
+        self.loc_log_probs = []
+        self.att_log_probs = []
+        self.att_rewards = []
+        final_canvas = dialog[1][1].long()
+        for dialog_ix in range(2):
+            # get data
+            inst, current_canvas, target, ref, _ = dialog[dialog_ix]
+            if dialog_ix > 0:
+                prev_canvas = Variable(dialog[dialog_ix - 1][1].cuda())
+            inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
 
-        # if False:
-        #     target = Variable(target.float().cuda())
-        #     loc_rel_out = self.loc_relative_predict(inst_embedding, prev_canvas)
-        #     loss = F.l1_loss(loc_rel_out[:, 0], target[:, 2]) +\
-        #            F.l1_loss(loc_rel_out[:, 1], target[:, 3])
-        #     return loss.mean(), loss.data.mean()
-        # else:
-        #     loc_rel_out = self.loc_relative_predict(inst_embedding, prev_canvas, ref_obj=ref)
-        #     loc_logprobs = F.log_softmax(loc_rel_out, dim=1)
-        #     predict_target = torch.LongTensor(loc_logprobs.size(0), 1)
-        #     for i in range(loc_logprobs.size(0)):
-        #         predict_target[i, 0] = target[i, 2] * 5 + target[i, 3]
-        #     accuracy = (torch.max(loc_logprobs.data.cpu(), dim=1)[1] == predict_target.squeeze()).float().mean()
-        #     predict_target = Variable(predict_target.cuda())
-        #     # reward = loc_logprobs.gather(1, predict_target).data
-        #     nll = -loc_logprobs.gather(1, predict_target).mean()
-        #     return nll, accuracy
+            # encode instruction
+            inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
 
-        #     # att_loss = -(self.att_log_prob * Variable(reward)).mean()
-        #     # return (nll + att_loss), accuracy
-        #
-        #     # loc_rel_out = self.loc_relative_predict(inst_embedding, prev_canvas)
-        #     # row_logprobs = F.log_softmax(loc_rel_out[:, :5], dim=1)
-        #     # col_logprobs = F.log_softmax(loc_rel_out[:, 5:], dim=1)
-        #     # row_target = Variable(target[:, 2].long().cuda())
-        #     # col_target = Variable(target[:, 3].long().cuda())
-        #     # row_match = torch.max(row_logprobs.data, dim=1)[1] == row_target.data
-        #     # col_match = torch.max(col_logprobs.data, dim=1)[1] == col_target.data
-        #     # accuracy = (row_match & col_match).float().mean()
-        #     # loss = -row_logprobs.gather(1, row_target.unsqueeze(1)).mean() - \
-        #     #        col_logprobs.gather(1, col_target.unsqueeze(1)).mean()
-        #     # return loss, accuracy
+            # sample color
+            color_probs = F.softmax(self.fc_color(inst_embedding), dim=1)
+            color_sample, color_log_prob = sample_probs(color_probs)
+            self.color_log_probs.append(color_log_prob)
 
-            # predict_target = torch.LongTensor(loc_logprobs.size(0), 1)
-            # for i in range(loc_logprobs.size(0)):
-            #     predict_target[i, 0] = target[i, 2] * 5 + target[i, 3]
-            # accuracy = (torch.max(loc_logprobs.data.cpu(), dim=1)[1] == predict_target.squeeze()).float().mean()
-            # predict_target = Variable(predict_target.cuda())
-            # loss = -loc_logprobs.gather(1, predict_target)
-            # loc_predic = torch.max(loc_logprobs, dim=1)[1]
-            # return loss.mean(), accuracy
+            # sample shape
+            shape_probs = F.softmax(self.fc_shape(inst_embedding), dim=1)
+            shape_sample, shape_log_prob = sample_probs(shape_probs)
+            self.shape_log_probs.append(shape_log_prob)
 
-        # loc_probs = F.softmax(self.loc_relative_predict(inst_embedding, prev_canvas, ref_obj=ref), dim=1)
-        # # loc_probs = F.softmax(self.fc_abs_loc(inst_embedding), dim=1)
-        # loc_sample, self.loc_log_prob = sample_probs(loc_probs)
-        # loc_target = torch.LongTensor(loc_sample.size(0))
-        # for i in range(loc_sample.size(0)):
-        #     loc_target[i] = target[i, 2] * 5 + target[i, 3]
-        # loc_rewards = ((loc_sample.cpu() == loc_target).float() - 0.5) * 2
-        # return loc_rewards
-        loc_predict = self.loc_relative_predict(inst_embedding, prev_canvas, ref_obj=ref)
-        loc_target = torch.LongTensor(loc_predict.size(0))
-        for i in range(loc_predict.size(0)):
-            loc_target[i] = target[i, 2] * 5 + target[i, 3]
-        # loc_rewards = (loc_predict.cpu() == loc_target).float()
-        loc_rewards = ((loc_predict.cpu() == loc_target).float() - 0.5) * 2
-        # return loc_rewards
+            # sample location
+            if dialog_ix == 0:
+                loc_predict, loc_log_prob = self.loc_abs_predict(inst_embedding)
+                self.att_log_probs.append(None)
+                self.att_rewards.append(None)
+            else:
+                loc_predict, loc_log_prob, att_log_prob, att_reward = self.loc_relative_predict(inst_embedding, prev_canvas, ref_obj=ref)
+                self.att_log_probs.append(att_log_prob)
+                self.att_rewards.append(att_reward)
+            self.loc_log_probs.append(loc_log_prob)
 
-        color_rewards = loc_rewards.new(loc_rewards.size())
-        color_rewards.fill_(0)
-        shape_rewards = loc_rewards.new(loc_rewards.size())
-        shape_rewards.fill_(0)
-        for i in range(loc_rewards.size(0)):
-            if loc_rewards[i] > 0:
-                color_rewards[i] = 1 if color_sample[i] == target[i, 0] else -1
-                shape_rewards[i] = 1 if shape_sample[i] == target[i, 1] else -1
-        return color_rewards, shape_rewards, loc_rewards
-
+            # compute rewards
+            step_loc_reward = torch.zeros(loc_predict.size(0))
+            step_color_reward = torch.zeros(loc_predict.size(0))
+            step_shape_reward = torch.zeros(loc_predict.size(0))
+            for i in range(step_loc_reward.size(0)):
+                if loc_predict[i] < 0 or loc_predict[i] >= 25:
+                    step_loc_reward[i] = -1
+                    continue
+                predict_target = final_canvas[i, loc_predict[i]]
+                if predict_target.sum() < 0:
+                    step_loc_reward[i] = -1
+                else:
+                    step_loc_reward[i] = 1
+                    step_color_reward[i] = 1 if color_sample[i] == predict_target[0] else -1
+                    step_shape_reward[i] = 1 if shape_sample[i] == predict_target[1] else -1
+            self.loc_rewards.append(step_loc_reward)
+            self.color_rewards.append(step_color_reward)
+            self.shape_rewards.append(step_loc_reward)
         # canvas_predict = final_canvas.new(final_canvas.size())
         # canvas_predict.fill_(-1)
         # for i in range(canvas_predict.size(0)):

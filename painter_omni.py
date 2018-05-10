@@ -125,13 +125,18 @@ def train(epoch):
         # # loss = (-model.loc_log_prob * loc_reward).sum() + (-model.att_log_prob * Variable(model.att_reward.cuda())).sum()
         # loss.backward()
 
-        color_reward, shape_reward, loc_reward = model(dialog, train_loader.dataset.ix_to_word)
-        color_reward, shape_reward, loc_reward = Variable(color_reward.cuda()), Variable(shape_reward.cuda()), Variable(loc_reward.cuda())
-        loss = (-model.loc_log_prob * loc_reward).sum() + \
-               (-model.color_log_prob * color_reward).sum() + \
-               (-model.shape_log_prob * shape_reward).sum() + \
-               (-model.att_log_prob * loc_reward).sum()
-        loss.backward()
+        model(dialog, train_loader.dataset.ix_to_word)
+        losses = []
+        for log_prob, reward in zip(model.color_log_probs, model.color_rewards):
+            losses.append((-log_prob * Variable(reward.cuda())).sum())
+        for log_prob, reward in zip(model.shape_log_probs, model.shape_rewards):
+            losses.append((-log_prob * Variable(reward.cuda())).sum())
+        for log_prob, reward in zip(model.loc_log_probs, model.loc_rewards):
+            losses.append((-log_prob * Variable(reward.cuda())).sum())
+        for log_prob, reward in zip(model.att_log_probs, model.loc_rewards):
+            if log_prob is not None:
+                losses.append((-log_prob * Variable(reward.cuda())).sum())
+        sum(losses).backward()
 
         # # loss, rewards = loss_fn(output, act, target_obj, ref_obj=None)
         # policy_loss = (-model.saved_log_probs * Variable(rewards)).sum()
@@ -139,18 +144,14 @@ def train(epoch):
         clip_gradient(optimizer, 0.1)
         optimizer.step()
         if batch_idx % args.log_interval == 0:
-            # print('Train Epoch: {} [{}/{} ({:.0f}%)]\tloss: {} accuracy: {}'.format(
-            #     epoch, batch_idx * args.batch_size, len(train_loader.dataset),
-            #            100. * batch_idx / len(train_loader), loss.data[0], accuracy))
-
-            # print('Train Epoch: {} [{}/{} ({:.0f}%)] loc_reward: {} att_reward: {}'.format(
-            #     epoch, batch_idx * args.batch_size, len(train_loader.dataset),
-            #            100. * batch_idx / len(train_loader), loc_reward.data.mean(), model.att_reward.mean()))
-
-            print('Train Epoch: {} [{}/{} ({:.0f}%)] color_reward: {:.3f}, shape_reward: {:.3f}, loc_reward: {:.3f}, att_reward: {:.3f}'.format(
+            reward_report = "c1: {5:.3f}, s1: {5:.3f}, l1: {5:.3f} | c2: {5:.3f}, s2: {5:.3f}, l2: {5:.3f}, a2: {5:.3f}".format(
+                model.color_rewards[0].mean(), model.shape_rewards[0].mean(), model.loc_rewards[0].mean(),
+                model.color_rewards[1].mean(), model.shape_rewards[1].mean(), model.loc_rewards[1].mean(),
+                model.att_rewards[1].mean()
+            )
+            print('Train Epoch: {} [{}/{} ({:.0f}%)] {}'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), color_reward.data.mean(), shape_reward.data.mean(), loc_reward.data.mean(), model.att_reward.mean()))
-
+                100. * batch_idx / len(train_loader), reward_report))
 
 def model_test():
     model.eval()
@@ -208,7 +209,7 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    torch.save(model.state_dict(), 't/model_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'painter-omni-combine/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-continue/model_{}.pth'.format(epoch))
 # #     # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
 
