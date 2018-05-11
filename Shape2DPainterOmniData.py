@@ -149,8 +149,8 @@ def shape2d_painter_data_collate(dialogs):
 
 def get_shape2d_painter_data_loader(split, batch_size):
     assert split in ['train', 'val', 'sample']
-    datafile = {'train': 'painter_omni_train_2turns.json',
-                'val': 'painter_omni_val_2turns.json',
+    datafile = {'train': 'painter_omni_train_3turns.json',
+                'val': 'painter_omni_val_3turns.json',
                 'sample': 'painter_omni_sample_2turns.json'}[split]
     dataset = Shape2DPainterData(datafile)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=shape2d_painter_data_collate)

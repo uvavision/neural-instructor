@@ -238,7 +238,8 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
         assert not 'delete' in lst_act
         agent = Agent(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         visualize_samples = []
-        turn_rel_ref = False
+        turn3_rel_ref = False
+        turn2_rel_ref = False
         for turn, act in enumerate(lst_act):
             canvas_data = [v.get_info() for k, v in agent.canvas.d_id_obj.items()]
             activities = agent.get_activity(act)
@@ -255,10 +256,12 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
             visualize_samples.append({"instruction": agent.message, "canvas": agent.canvas.get_desc()})
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
-            if not turn_rel_ref and turn + 1 == 4 and inst_ref_type(activities[0]['message']) == INST_REL:
-                turn_rel_ref = True
+            if not turn2_rel_ref and turn + 1 == 2 and inst_ref_type(activities[0]['message']) == INST_REL:
+                turn2_rel_ref = True
+            if not turn3_rel_ref and turn + 1 == 3 and inst_ref_type(activities[0]['message']) == INST_REL:
+                turn3_rel_ref = True
                 break
-        if turn_rel_ref:
+        if not turn2_rel_ref and turn3_rel_ref:
             data.append(d_dial)
         # run the server: python canvas_render.py, visit the result at http://localhost:5001/dialog
         # r = requests.post("http://vision.cs.virginia.edu:5001/new_dialog", json=visualize_samples)
@@ -271,7 +274,7 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
-        generate_data(5000, out_json=sys.argv[1])
+        generate_data(500000, out_json=sys.argv[1])
     else:
         generate_data(10)
 

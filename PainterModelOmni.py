@@ -55,6 +55,7 @@ class Shape2DPainterNet(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
         self.inst_encoder = InstEncoder(vocab_size)
+        self.inst_encoder2 = InstEncoder(vocab_size)
         self.use_mask = True
         # self.canvas_encoder = CanvasEncoder()
         self.hidden_size = 64
@@ -139,16 +140,21 @@ class Shape2DPainterNet(nn.Module):
         self.loc_log_probs = []
         self.att_log_probs = []
         self.att_rewards = []
-        final_canvas = dialog[1][1].long()
-        for dialog_ix in range(2):
+        total_steps = len(dialog)
+        final_canvas = dialog[total_steps-1][1].long()
+        canvas_updated = final_canvas.new(final_canvas.size()).fill_(-1)
+        for dialog_ix in range(total_steps):
             # get data
             inst, current_canvas, target, ref, _ = dialog[dialog_ix]
-            if dialog_ix > 0:
-                prev_canvas = Variable(dialog[dialog_ix - 1][1].cuda())
+            # if dialog_ix > 0:
+            #     prev_canvas = Variable(dialog[dialog_ix - 1][1].cuda())
             inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
 
             # encode instruction
-            inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
+            if dialog_ix != total_steps - 1:
+                inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
+            else:
+                inst_embedding = self.inst_encoder2(Variable(inst.cuda()))  # Bx64
 
             # sample color
             color_probs = F.softmax(self.fc_color(inst_embedding), dim=1)
@@ -161,12 +167,13 @@ class Shape2DPainterNet(nn.Module):
             self.shape_log_probs.append(shape_log_prob)
 
             # sample location
-            if dialog_ix == 0:
+            if dialog_ix != total_steps - 1:
                 loc_predict, loc_log_prob = self.loc_abs_predict(inst_embedding)
                 self.att_log_probs.append(None)
                 self.att_rewards.append(None)
             else:
-                loc_predict, loc_log_prob, att_log_prob, att_reward = self.loc_relative_predict(inst_embedding, prev_canvas, ref_obj=ref)
+                loc_predict, loc_log_prob, att_log_prob, att_reward = \
+                    self.loc_relative_predict(inst_embedding, Variable(canvas_updated.float().cuda()), ref_obj=ref)
                 self.att_log_probs.append(att_log_prob)
                 self.att_rewards.append(att_reward)
             self.loc_log_probs.append(loc_log_prob)
@@ -186,9 +193,24 @@ class Shape2DPainterNet(nn.Module):
                     step_loc_reward[i] = 1
                     step_color_reward[i] = 1 if color_sample[i] == predict_target[0] else -1
                     step_shape_reward[i] = 1 if shape_sample[i] == predict_target[1] else -1
+            if dialog_ix > 0:
+                prev_reward = (self.loc_rewards[-1] > 0) & (self.color_rewards[-1] > 0) & (self.shape_rewards[-1] > 0)
+                for ix in range(prev_reward.size(0)):
+                    if prev_reward[ix] != 1:
+                        step_loc_reward[ix] = 0
+                        step_color_reward[ix] = 0
+                        step_shape_reward[ix] = 0
             self.loc_rewards.append(step_loc_reward)
             self.color_rewards.append(step_color_reward)
-            self.shape_rewards.append(step_loc_reward)
+            self.shape_rewards.append(step_shape_reward)
+            for i in range(step_loc_reward.size(0)):
+                if step_loc_reward[i] > 0 and step_color_reward[i] > 0 and step_shape_reward[i] > 0:
+                    loc = loc_predict[i]
+                    canvas_updated[i, loc, 0] = color_sample[i]
+                    canvas_updated[i, loc, 1] = shape_sample[i]
+                    canvas_updated[i, loc, 2] = loc // 5
+                    canvas_updated[i, loc, 3] = loc % 5
+
         # canvas_predict = final_canvas.new(final_canvas.size())
         # canvas_predict.fill_(-1)
         # for i in range(canvas_predict.size(0)):

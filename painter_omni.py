@@ -78,6 +78,8 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('painter_model_new_level_combined//model_20.pth'))
 # model.load_state_dict(torch.load('painter_model_new_add_remove///model_20.pth'))
 # model.load_state_dict(torch.load('painter-omni///model_200.pth'))
+# model.load_state_dict(torch.load('painter-omni-combine///model_19.pth'))
+# model.load_state_dict(torch.load('painter-omni-combine///model_54.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
@@ -115,10 +117,10 @@ def train(epoch):
         clip_gradient(optimizer, 0.1)
         optimizer.step()
         if batch_idx % args.log_interval == 0:
-            reward_report = "c1: {5:.3f}, s1: {5:.3f}, l1: {5:.3f} | c2: {5:.3f}, s2: {5:.3f}, l2: {5:.3f}, a2: {5:.3f}".format(
+            reward_report = "c1: {:.3f}, s1: {:.3f}, l1: {:.3f} | c2: {:.3f}, s2: {:.3f}, l2: {:.3f}, a2: {:.3f}".format(
                 model.color_rewards[0].mean(), model.shape_rewards[0].mean(), model.loc_rewards[0].mean(),
-                model.color_rewards[1].mean(), model.shape_rewards[1].mean(), model.loc_rewards[1].mean(),
-                model.att_rewards[1].mean()
+                model.color_rewards[-1].mean(), model.shape_rewards[-1].mean(), model.loc_rewards[-1].mean(),
+                model.att_rewards[-1].mean()
             )
             print('Train Epoch: {} [{}/{} ({:.0f}%)] {}'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
@@ -180,7 +182,7 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    torch.save(model.state_dict(), 'painter-omni-combine/model_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'painter-omni-combine2/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-continue/model_{}.pth'.format(epoch))
 # #     # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
 
