@@ -55,7 +55,7 @@ class Shape2DPainterNet(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
         self.inst_encoder = InstEncoder(vocab_size)
-        self.inst_encoder2 = InstEncoder(vocab_size)
+        self.rel_inst_encoder = InstEncoder(vocab_size)
         self.use_mask = True
         # self.canvas_encoder = CanvasEncoder()
         self.hidden_size = 64
@@ -151,10 +151,10 @@ class Shape2DPainterNet(nn.Module):
             inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
 
             # encode instruction
-            if dialog_ix != total_steps - 1:
+            if ref is None:
                 inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
             else:
-                inst_embedding = self.inst_encoder2(Variable(inst.cuda()))  # Bx64
+                inst_embedding = self.rel_inst_encoder(Variable(inst.cuda()))  # Bx64
 
             # sample color
             color_probs = F.softmax(self.fc_color(inst_embedding), dim=1)
@@ -167,7 +167,7 @@ class Shape2DPainterNet(nn.Module):
             self.shape_log_probs.append(shape_log_prob)
 
             # sample location
-            if dialog_ix != total_steps - 1:
+            if ref is None:
                 loc_predict, loc_log_prob = self.loc_abs_predict(inst_embedding)
                 self.att_log_probs.append(None)
                 self.att_rewards.append(None)
@@ -193,13 +193,22 @@ class Shape2DPainterNet(nn.Module):
                     step_loc_reward[i] = 1
                     step_color_reward[i] = 1 if color_sample[i] == predict_target[0] else -1
                     step_shape_reward[i] = 1 if shape_sample[i] == predict_target[1] else -1
-            if dialog_ix > 0:
-                prev_reward = (self.loc_rewards[-1] > 0) & (self.color_rewards[-1] > 0) & (self.shape_rewards[-1] > 0)
-                for ix in range(prev_reward.size(0)):
-                    if prev_reward[ix] != 1:
-                        step_loc_reward[ix] = 0
-                        step_color_reward[ix] = 0
-                        step_shape_reward[ix] = 0
+
+            # if it's a relative reference instruction,
+            # reward is considered only when previous canvas is correctly computed
+            if ref is not None:
+                for canvas_ix in range(canvas_updated.size(0)):
+                    final_canvas1 = final_canvas[canvas_ix]
+                    canvas_updated1 = canvas_updated[canvas_ix]
+                    canvas_correct = False
+                    indices = torch.nonzero(canvas_updated1.sum(dim=1) >= 0).squeeze()
+                    if indices.sum() > 0 and (torch.index_select(final_canvas1, 0, indices).sum(dim=1) >= 0).all():
+                        canvas_correct = True
+                    if not canvas_correct:
+                        step_loc_reward[canvas_ix] = 0
+                        step_color_reward[canvas_ix] = 0
+                        step_shape_reward[canvas_ix] = 0
+
             self.loc_rewards.append(step_loc_reward)
             self.color_rewards.append(step_color_reward)
             self.shape_rewards.append(step_shape_reward)
