@@ -103,7 +103,7 @@ class Shape2DPainterNet(nn.Module):
         inst2 = torch.unsqueeze(inst_embedding, 1)  # Bx1x64
         inst2 = inst2.repeat(1, 25, 1) # Bx25x64
         att = torch.cat([inst2, canvas], 2) # Bx25x68
-        att = self.fc_ref_obj(att).squeeze() # Bx25
+        att = self.fc_ref_obj(att).squeeze(dim=2) # Bx25
         weight = F.softmax(att, dim=1)
         att_sample, att_log_prob = sample_probs(weight)
         self.att_sample = att_sample
