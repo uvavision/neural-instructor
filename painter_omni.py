@@ -117,12 +117,14 @@ def train(epoch):
         clip_gradient(optimizer, 0.1)
         optimizer.step()
         if batch_idx % args.log_interval == 0:
-            reward_report = "c1: {:.3f}, s1: {:.3f}, l1: {:.3f} | c2: {:.3f}, s2: {:.3f}, l2: {:.3f}, a2: {:.3f}".format(
-                model.color_rewards[0].mean(), model.shape_rewards[0].mean(), model.loc_rewards[0].mean(),
-                model.color_rewards[-1].mean(), model.shape_rewards[-1].mean(), model.loc_rewards[-1].mean(),
-                model.att_rewards[-1].mean()
-            )
-            print('Train Epoch: {} [{}/{} ({:.0f}%)] {}'.format(
+            total_steps = 3
+            fmt_template = "c{0}:{1:.3f}, s{0}:{2:.3f}, l{0}:{3:.3f} | "
+            reward_report = ''
+            for i in range(total_steps):
+                reward_report += fmt_template.format(i, model.color_rewards[i].mean(),
+                                                     model.shape_rewards[i].mean(), model.loc_rewards[i].mean())
+            reward_report += "att:{:.3f}".format(model.att_rewards[-1].mean())
+            print('TEpoch:{} [{}/{} ({:.0f}%)]{}'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), reward_report))
 
@@ -182,7 +184,7 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    torch.save(model.state_dict(), 'painter-omni-combine2/model_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'painter-omni-combine3/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-continue/model_{}.pth'.format(epoch))
 # #     # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
 
