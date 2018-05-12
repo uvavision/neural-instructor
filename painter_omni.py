@@ -13,7 +13,7 @@ from utils import clip_gradient, adjust_lr
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
-parser.add_argument('--batch-size', type=int, default=256, metavar='N',
+parser.add_argument('--batch-size', type=int, default=32, metavar='N',
                     help='input batch size for training (default: 64)')
 parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                     help='input batch size for testing (default: 1000)')
@@ -66,6 +66,8 @@ vocab = ['a', 'add', 'at', 'blue', 'bottom-left', 'bottom-left-of', 'bottom-midd
          'top-left-of', 'top-middle', 'top-of', 'top-right', 'top-right-of', 'triangle']
 train_loader = get_shape2d_painter_data_loader(split='train', batch_size=args.batch_size)
 test_loader = get_shape2d_painter_data_loader(split='val', batch_size=args.batch_size)
+print("vocab-size: {}".format(train_loader.dataset.vocab_size))
+print(train_loader.dataset.vocab)
 assert train_loader.dataset.vocab_size == test_loader.dataset.vocab_size
 assert train_loader.dataset.max_seq_length == test_loader.dataset.max_seq_length
 # assert train_loader.dataset.vocab == vocab
@@ -80,7 +82,7 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('painter_model_new_add_remove///model_20.pth'))
 # model.load_state_dict(torch.load('painter-omni///model_200.pth'))
 # model.load_state_dict(torch.load('painter-omni-combine///model_19.pth'))
-# model.load_state_dict(torch.load('painter-omni-combine///model_54.pth'))
+# model.load_state_dict(torch.load('painter-omni-combine-exp///model_20.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
@@ -118,13 +120,16 @@ def train(epoch):
         clip_gradient(optimizer, 0.1)
         optimizer.step()
         if batch_idx % args.log_interval == 0:
-            total_steps = len(dialog)
+            total_steps = len(model.loc_rewards)
             fmt_template = "c{0}:{1:>6.3f}, s{0}:{2:>6.3f}, l{0}:{3:>6.3f} | "
             reward_report = ''
             for i in range(total_steps):
                 reward_report += fmt_template.format(i, model.color_rewards[i].mean(),
                                                      model.shape_rewards[i].mean(), model.loc_rewards[i].mean())
-            reward_report += "att:{:6.3f}".format(model.att_rewards[-1].mean())
+            for i in range(len(model.att_rewards)):
+                if model.att_rewards[i] is not None:
+                    reward_report += "att:{:6.3f}|".format(model.att_rewards[i].mean())
+            reward_report += "final reward: {:.3f}".format(model.running_reward.float().mean())
             print('E:{:3} [{:>6}/{} ({:>2.0f}%)]{}'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), reward_report))
@@ -185,7 +190,7 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    torch.save(model.state_dict(), 'painter-omni-combine-exp/model_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'painter-omni-combine-exp-all/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-continue/model_{}.pth'.format(epoch))
 # #     # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
 

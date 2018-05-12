@@ -143,6 +143,7 @@ class Shape2DPainterNet(nn.Module):
         total_steps = len(dialog)
         final_canvas = dialog[total_steps-1][1].long()
         canvas_updated = final_canvas.new(final_canvas.size()).fill_(-1)
+        running_reward = torch.LongTensor(final_canvas.size(0)).fill_(1)
         for dialog_ix in range(total_steps):
             # get data
             inst, current_canvas, target, ref, _ = dialog[dialog_ix]
@@ -167,15 +168,14 @@ class Shape2DPainterNet(nn.Module):
             self.shape_log_probs.append(shape_log_prob)
 
             # sample location
+            step_att_reward = None
             if ref is None:
                 loc_predict, loc_log_prob = self.loc_abs_predict(inst_embedding)
                 self.att_log_probs.append(None)
-                self.att_rewards.append(None)
             else:
-                loc_predict, loc_log_prob, att_log_prob, att_reward = \
+                loc_predict, loc_log_prob, att_log_prob, step_att_reward = \
                     self.loc_relative_predict(inst_embedding, Variable(canvas_updated.float().cuda()), ref_obj=ref)
                 self.att_log_probs.append(att_log_prob)
-                self.att_rewards.append(att_reward)
             self.loc_log_probs.append(loc_log_prob)
 
             # compute rewards
@@ -197,18 +197,39 @@ class Shape2DPainterNet(nn.Module):
             # if it's a relative reference instruction,
             # reward is considered only when previous canvas is correctly computed
             if ref is not None:
-                for canvas_ix in range(canvas_updated.size(0)):
-                    final_canvas1 = final_canvas[canvas_ix]
-                    canvas_updated1 = canvas_updated[canvas_ix]
-                    canvas_correct = False
-                    indices = torch.nonzero(canvas_updated1.sum(dim=1) >= 0).squeeze()
-                    if indices.sum() > 0 and (torch.index_select(final_canvas1, 0, indices).sum(dim=1) >= 0).all():
-                        canvas_correct = True
-                    if not canvas_correct:
+                for canvas_ix in range(running_reward.size(0)):
+                    if running_reward[canvas_ix] < 0:
                         step_loc_reward[canvas_ix] = 0
                         step_color_reward[canvas_ix] = 0
                         step_shape_reward[canvas_ix] = 0
+                        step_att_reward[canvas_ix] = 0
 
+            current_reward = (step_loc_reward > 0) & (step_color_reward > 0) & (step_shape_reward > 0)
+            for reward_ix in range(running_reward.size(0)):
+                if running_reward[reward_ix] > 0 and current_reward[reward_ix] == 1:
+                    running_reward[reward_ix] = 1
+                else:
+                    running_reward[reward_ix] = -1
+            self.running_reward = running_reward
+            # if ref is not None:
+            #     for canvas_ix in range(canvas_updated.size(0)):
+            #         final_canvas1 = final_canvas[canvas_ix]
+            #         canvas_updated1 = canvas_updated[canvas_ix]
+            #         canvas_correct = False
+            #         obj_indices = torch.nonzero(canvas_updated1.sum(dim=1) >= 0).squeeze()
+            #         if obj_indices.sum() > 0:
+            #             # and (torch.index_select(final_canvas1, 0, obj_indices).sum(dim=1) >= 0).all()
+            #             obj_current = torch.index_select(canvas_updated1, 0, obj_indices)
+            #             obj_final = torch.index_select(final_canvas1, 0, obj_indices)
+            #             if (obj_current == obj_final).all():
+            #                 canvas_correct = True
+            #         if not canvas_correct:
+            #             step_loc_reward[canvas_ix] = 0
+            #             step_color_reward[canvas_ix] = 0
+            #             step_shape_reward[canvas_ix] = 0
+            #             step_att_reward[canvas_ix] = 0
+
+            self.att_rewards.append(step_att_reward)
             self.loc_rewards.append(step_loc_reward)
             self.color_rewards.append(step_color_reward)
             self.shape_rewards.append(step_shape_reward)
@@ -219,6 +240,10 @@ class Shape2DPainterNet(nn.Module):
                     canvas_updated[i, loc, 1] = shape_sample[i]
                     canvas_updated[i, loc, 2] = loc // 5
                     canvas_updated[i, loc, 3] = loc % 5
+
+            # if step_loc_reward.size(0) == 1:
+            #     if step_loc_reward[0] < 0 or step_color_reward[0] < 0 or step_shape_reward[0] < 0:
+            #         break
 
         # canvas_predict = final_canvas.new(final_canvas.size())
         # canvas_predict.fill_(-1)

@@ -238,8 +238,12 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
         assert not 'delete' in lst_act
         agent = Agent(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         visualize_samples = []
-        turn3_rel_ref = False
-        turn2_rel_ref = False
+        # turn3_rel_ref = False
+        # turn2_rel_ref = False
+        ref_types = []
+        target_ref_types = ['abs', 'abs', 'rel', 'abs']
+        max_turns = len(target_ref_types)
+        lst_act = lst_act[:max_turns]
         for turn, act in enumerate(lst_act):
             canvas_data = [v.get_info() for k, v in agent.canvas.d_id_obj.items()]
             activities = agent.get_activity(act)
@@ -256,12 +260,26 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
             visualize_samples.append({"instruction": agent.message, "canvas": agent.canvas.get_desc()})
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
-            if not turn2_rel_ref and turn + 1 == 2 and inst_ref_type(activities[0]['message']) == INST_REL:
-                turn2_rel_ref = True
-            if not turn3_rel_ref and turn + 1 == 3 and inst_ref_type(activities[0]['message']) == INST_REL:
-                turn3_rel_ref = True
+            ref_type = inst_ref_type(activities[0]['message'])
+            if ref_type != INST_REL:
+                activities[0]['features']['obj_ref'] = None
+            if ref_type == INST_REL:
+                ref_types.append("rel")
+            else:
+                ref_types.append("abs")
+            # if turn + 1 == 2 and inst_ref_type(activities[0]['message']) == INST_REL:
+            #     turn2_rel_ref = True
+            #     assert activities[0]['features']['obj_ref'] is not None
+            # # if turn + 1 == 2 and not turn2_rel_ref:
+            # #     print(activities[0]['message'])
+            # #     assert activities[0]['features']['obj_ref'] is None
+            # if turn + 1 == 3 and inst_ref_type(activities[0]['message']) == INST_REL:
+            #     turn3_rel_ref = True
+            #     break
+            if turn + 1 == max_turns:
                 break
-        if not turn2_rel_ref and turn3_rel_ref:
+        # if ref_types == ['abs', 'abs', 'rel', 'rel', 'abs']:
+        if ref_types == target_ref_types:
             data.append(d_dial)
         # run the server: python canvas_render.py, visit the result at http://localhost:5001/dialog
         # r = requests.post("http://vision.cs.virginia.edu:5001/new_dialog", json=visualize_samples)
@@ -276,5 +294,5 @@ if __name__ == '__main__':
     if len(sys.argv) == 2:
         generate_data(500000, out_json=sys.argv[1])
     else:
-        generate_data(10)
+        generate_data(100000)
 
