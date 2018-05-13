@@ -54,16 +54,19 @@ def sample_probs(probs):
 class Shape2DPainterNet(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
-        self.inst_encoder = InstEncoder(vocab_size)
-        self.rel_inst_encoder = InstEncoder(vocab_size)
+        self.inst_encoder_abs = InstEncoder(vocab_size)
+        # self.inst_encoder_rel_abs = InstEncoder(vocab_size)
+        self.inst_encoder_rel = InstEncoder(vocab_size)
+        # self.rel_inst_encoder = InstEncoder(vocab_size)
         self.use_mask = True
         # self.canvas_encoder = CanvasEncoder()
         self.hidden_size = 64
-        self.fc_color = nn.Linear(self.inst_encoder.rnn_size, 3)
-        self.fc_shape = nn.Linear(self.inst_encoder.rnn_size, 3)
-        self.fc_abs_loc = nn.Linear(self.inst_encoder.rnn_size, 25)
+        rnn_size = self.inst_encoder_abs.rnn_size
+        self.fc_color = nn.Linear(rnn_size, 3)
+        self.fc_shape = nn.Linear(rnn_size, 3)
+        self.fc_abs_loc = nn.Linear(rnn_size, 25)
         self.fc_ref_obj = nn.Sequential(nn.Linear(68, 32), nn.ReLU(), nn.Linear(32, 1))
-        self.rel_loc_p = nn.Linear(self.inst_encoder.rnn_size, 8)
+        self.rel_loc_p = nn.Linear(rnn_size, 8)
         # self.fc_offset = nn.Linear(self.inst_encoder.rnn_size, 2)
         # self.fc_rel_loc = nn.Sequential(nn.Linear(2, 16), nn.Linear(16, 25))
         # self.fc_rel_loc = nn.Sequential(nn.Linear(2, 16), nn.ReLU(), nn.Linear(16, 25))
@@ -118,7 +121,9 @@ class Shape2DPainterNet(nn.Module):
         loc_probs = F.softmax(self.rel_loc_p(inst_embedding), dim=1)
         loc_sample, loc_log_prob = sample_probs(loc_probs)
         ref_obj_att, att_log_prob = self.ref_obj_att(inst_embedding, canvas)
-        att_reward = (((ref_obj_att == ref_obj).sum(dim=1) == 4).float() - 0.5) * 2
+        att_reward = None
+        if ref_obj is not None:
+            att_reward = (((ref_obj_att == ref_obj).sum(dim=1) == 4).float() - 0.5) * 2
         loc_predict = ref_obj_att.new(ref_obj_att.size(0))
         for i in range(ref_obj_att.size(0)):
             offsetx, offsety = offsets[loc_sample[i]]
@@ -151,11 +156,18 @@ class Shape2DPainterNet(nn.Module):
             #     prev_canvas = Variable(dialog[dialog_ix - 1][1].cuda())
             inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
 
-            # encode instruction
-            if ref is None:
-                inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
+            if dialog_ix == 0:
+                inst_embedding = self.inst_encoder_abs(Variable(inst.cuda()))  # Bx64
+            elif dialog_ix == 1 or dialog_ix == 2:
+                inst_embedding = self.inst_encoder_rel(Variable(inst.cuda()))  # Bx64
             else:
-                inst_embedding = self.rel_inst_encoder(Variable(inst.cuda()))  # Bx64
+                assert False
+
+            # # encode instruction
+            # if ref is None:
+            #     inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
+            # else:
+            #     inst_embedding = self.rel_inst_encoder(Variable(inst.cuda()))  # Bx64
 
             # sample color
             color_probs = F.softmax(self.fc_color(inst_embedding), dim=1)
@@ -169,7 +181,7 @@ class Shape2DPainterNet(nn.Module):
 
             # sample location
             step_att_reward = None
-            if ref is None:
+            if dialog_ix == 0:
                 loc_predict, loc_log_prob = self.loc_abs_predict(inst_embedding)
                 self.att_log_probs.append(None)
             else:
@@ -196,14 +208,15 @@ class Shape2DPainterNet(nn.Module):
 
             # if it's a relative reference instruction,
             # reward is considered only when previous canvas is correctly computed
-            if ref is not None:
+            if dialog_ix > 0:
                 for canvas_ix in range(running_reward.size(0)):
                     # if running_reward[canvas_ix] < 0 and step_loc_reward[canvas_ix] < 0:
                     if running_reward[canvas_ix] < 0:
                         step_loc_reward[canvas_ix] = 0
                         step_color_reward[canvas_ix] = 0
                         step_shape_reward[canvas_ix] = 0
-                        step_att_reward[canvas_ix] = 0
+                        if step_att_reward is not None:
+                            step_att_reward[canvas_ix] = 0
 
             current_reward = (step_loc_reward > 0) & (step_color_reward > 0) & (step_shape_reward > 0)
             for reward_ix in range(running_reward.size(0)):
@@ -241,7 +254,9 @@ class Shape2DPainterNet(nn.Module):
                     canvas_updated[i, loc, 1] = shape_sample[i]
                     canvas_updated[i, loc, 2] = loc // 5
                     canvas_updated[i, loc, 3] = loc % 5
-        return (((canvas_updated == final_canvas).sum(dim=2) == 4).sum(dim=1) == 25).float().mean()
+        success = (((canvas_updated == final_canvas).sum(dim=2) == 4).sum(dim=1) == 25).float()
+        self.success_reward = (success - 0.5) * 2
+        return success.mean()
             # if step_loc_reward.size(0) == 1:
             #     if step_loc_reward[0] < 0 or step_color_reward[0] < 0 or step_shape_reward[0] < 0:
             #         break

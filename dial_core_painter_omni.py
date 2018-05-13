@@ -240,8 +240,10 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
         visualize_samples = []
         # turn3_rel_ref = False
         # turn2_rel_ref = False
+        # max_turns = 6
+        detailed_ref_types = []
         ref_types = []
-        target_ref_types = ['abs', 'abs', 'rel', 'abs']
+        target_ref_types = ['abs', 'abs', 'rel']
         max_turns = len(target_ref_types)
         lst_act = lst_act[:max_turns]
         for turn, act in enumerate(lst_act):
@@ -261,6 +263,7 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
             ref_type = inst_ref_type(activities[0]['message'])
+            detailed_ref_types.append(ref_type)
             if ref_type != INST_REL:
                 activities[0]['features']['obj_ref'] = None
             if ref_type == INST_REL:
@@ -280,11 +283,17 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
                 break
         # if ref_types == ['abs', 'abs', 'rel', 'rel', 'abs']:
         if ref_types == target_ref_types:
-            data.append(d_dial)
+            # if random.random() < 0.05 or detailed_ref_types[1] == INST_REL_ABS:
+            if detailed_ref_types[1] == INST_REL_ABS:
+                data.append(d_dial)
+        # if INST_REL_REL_ABS in detailed_ref_types:
+        #     data.append(d_dial)
+        # if ref_types == target_ref_types and detailed_ref_types[1] == INST_REL_ABS:
+        #     data.append(d_dial)
         # run the server: python canvas_render.py, visit the result at http://localhost:5001/dialog
         # r = requests.post("http://vision.cs.virginia.edu:5001/new_dialog", json=visualize_samples)
         # r.raise_for_status()
-    print("numer of instructions: {}".format(count))
+    print("numer of instructions: {}".format(len(data)))
     if out_json:
         print("number of dialogs: {}".format(len(data)))
         json.dump(data, open(out_json, 'w'), indent=2)
@@ -292,7 +301,7 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
-        generate_data(500000, out_json=sys.argv[1])
+        generate_data(10000000, out_json=sys.argv[1])
     else:
         generate_data(100000)
 

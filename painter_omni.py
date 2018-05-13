@@ -64,7 +64,7 @@ vocab = ['a', 'add', 'at', 'blue', 'bottom-left', 'bottom-left-of', 'bottom-midd
          'bottom-right-of', 'canvas', 'center', 'circle', 'green', 'left-middle', 'left-of', 'location', 'now',
          'object', 'of', 'one', 'place', 'red', 'right-middle', 'right-of', 'square', 'the', 'to/at', 'top-left',
          'top-left-of', 'top-middle', 'top-of', 'top-right', 'top-right-of', 'triangle']
-train_loader = get_shape2d_painter_data_loader(split='val', batch_size=args.batch_size)
+train_loader = get_shape2d_painter_data_loader(split='train', batch_size=args.batch_size)
 test_loader = get_shape2d_painter_data_loader(split='val', batch_size=args.batch_size)
 print("vocab-size: {}".format(train_loader.dataset.vocab_size))
 print(train_loader.dataset.vocab)
@@ -85,7 +85,9 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('painter-omni-combine-exp///model_20.pth'))
 # model.load_state_dict(torch.load('painter-omni-abs_rel/model_2.pth'))
 # model.load_state_dict(torch.load('painter-abs_abs_rel_abs/model_200.pth'))
-model.load_state_dict(torch.load('painter-omni-abs_abs_rel2/model_33.bak.pth'))
+# model.load_state_dict(torch.load('painter-omni-abs_abs_rel2/model_33.bak.pth'))
+# model.load_state_dict(torch.load('painter-omni-abs_abs2_rel-separate//model_17.pth'))
+model.load_state_dict(torch.load('painter-omni-abs_abs2_rel_retrain/model_17.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
@@ -109,16 +111,29 @@ def train(epoch):
         optimizer.zero_grad()
         success = model(dialog, train_loader.dataset.ix_to_word)
         losses = []
-        for log_prob, reward in zip(model.color_log_probs, model.color_rewards):
-            losses.append((-log_prob * Variable(reward.cuda())).sum())
-        for log_prob, reward in zip(model.shape_log_probs, model.shape_rewards):
-            losses.append((-log_prob * Variable(reward.cuda())).sum())
-        for log_prob, reward in zip(model.loc_log_probs, model.loc_rewards):
-            losses.append((-log_prob * Variable(reward.cuda())).sum())
-        for log_prob, reward in zip(model.att_log_probs, model.loc_rewards):
-            if log_prob is not None:
+        use_success_reward = True
+        if use_success_reward:
+            for log_prob, reward in zip(model.color_log_probs, model.color_rewards):
+                losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
+            for log_prob, reward in zip(model.shape_log_probs, model.shape_rewards):
+                losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
+            for log_prob, reward in zip(model.loc_log_probs, model.loc_rewards):
+                losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
+            for log_prob, reward in zip(model.att_log_probs, model.loc_rewards):
+                if log_prob is not None:
+                    losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
+            sum(losses).backward()
+        else:
+            for log_prob, reward in zip(model.color_log_probs, model.color_rewards):
                 losses.append((-log_prob * Variable(reward.cuda())).sum())
-        sum(losses).backward()
+            for log_prob, reward in zip(model.shape_log_probs, model.shape_rewards):
+                losses.append((-log_prob * Variable(reward.cuda())).sum())
+            for log_prob, reward in zip(model.loc_log_probs, model.loc_rewards):
+                losses.append((-log_prob * Variable(reward.cuda())).sum())
+            for log_prob, reward in zip(model.att_log_probs, model.loc_rewards):
+                if log_prob is not None:
+                    losses.append((-log_prob * Variable(reward.cuda())).sum())
+            sum(losses).backward()
 
         clip_gradient(optimizer, 0.1)
         optimizer.step()
@@ -193,7 +208,10 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    torch.save(model.state_dict(), 'painter-omni-abs_abs_rel_balanced/model_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_retrain_success_reward/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_retrain/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel-separate/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'painter-omni-abs_abs_rel_resampled-shared_encoder/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-abs_abs_rel2/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-combine-exp-all/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-abs_rel/model_{}.pth'.format(epoch))
