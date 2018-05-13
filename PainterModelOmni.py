@@ -198,6 +198,7 @@ class Shape2DPainterNet(nn.Module):
             # reward is considered only when previous canvas is correctly computed
             if ref is not None:
                 for canvas_ix in range(running_reward.size(0)):
+                    # if running_reward[canvas_ix] < 0 and step_loc_reward[canvas_ix] < 0:
                     if running_reward[canvas_ix] < 0:
                         step_loc_reward[canvas_ix] = 0
                         step_color_reward[canvas_ix] = 0
@@ -240,7 +241,7 @@ class Shape2DPainterNet(nn.Module):
                     canvas_updated[i, loc, 1] = shape_sample[i]
                     canvas_updated[i, loc, 2] = loc // 5
                     canvas_updated[i, loc, 3] = loc % 5
-
+        return (((canvas_updated == final_canvas).sum(dim=2) == 4).sum(dim=1) == 25).float().mean()
             # if step_loc_reward.size(0) == 1:
             #     if step_loc_reward[0] < 0 or step_color_reward[0] < 0 or step_shape_reward[0] < 0:
             #         break

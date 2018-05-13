@@ -64,7 +64,7 @@ vocab = ['a', 'add', 'at', 'blue', 'bottom-left', 'bottom-left-of', 'bottom-midd
          'bottom-right-of', 'canvas', 'center', 'circle', 'green', 'left-middle', 'left-of', 'location', 'now',
          'object', 'of', 'one', 'place', 'red', 'right-middle', 'right-of', 'square', 'the', 'to/at', 'top-left',
          'top-left-of', 'top-middle', 'top-of', 'top-right', 'top-right-of', 'triangle']
-train_loader = get_shape2d_painter_data_loader(split='train', batch_size=args.batch_size)
+train_loader = get_shape2d_painter_data_loader(split='val', batch_size=args.batch_size)
 test_loader = get_shape2d_painter_data_loader(split='val', batch_size=args.batch_size)
 print("vocab-size: {}".format(train_loader.dataset.vocab_size))
 print(train_loader.dataset.vocab)
@@ -83,6 +83,9 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('painter-omni///model_200.pth'))
 # model.load_state_dict(torch.load('painter-omni-combine///model_19.pth'))
 # model.load_state_dict(torch.load('painter-omni-combine-exp///model_20.pth'))
+# model.load_state_dict(torch.load('painter-omni-abs_rel/model_2.pth'))
+# model.load_state_dict(torch.load('painter-abs_abs_rel_abs/model_200.pth'))
+model.load_state_dict(torch.load('painter-omni-abs_abs_rel2/model_33.bak.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
@@ -104,7 +107,7 @@ def train(epoch):
     model.train()
     for batch_idx, dialog in enumerate(train_loader):
         optimizer.zero_grad()
-        model(dialog, train_loader.dataset.ix_to_word)
+        success = model(dialog, train_loader.dataset.ix_to_word)
         losses = []
         for log_prob, reward in zip(model.color_log_probs, model.color_rewards):
             losses.append((-log_prob * Variable(reward.cuda())).sum())
@@ -129,7 +132,7 @@ def train(epoch):
             for i in range(len(model.att_rewards)):
                 if model.att_rewards[i] is not None:
                     reward_report += "att:{:6.3f}|".format(model.att_rewards[i].mean())
-            reward_report += "final reward: {:.3f}".format(model.running_reward.float().mean())
+            reward_report += "success: {:.3f}".format(success)
             print('E:{:3} [{:>6}/{} ({:>2.0f}%)]{}'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), reward_report))
@@ -190,7 +193,10 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    torch.save(model.state_dict(), 'painter-omni-combine-exp-all/model_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), 'painter-omni-abs_abs_rel_balanced/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'painter-omni-abs_abs_rel2/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'painter-omni-combine-exp-all/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'painter-omni-abs_rel/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-continue/model_{}.pth'.format(epoch))
 # #     # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
 
