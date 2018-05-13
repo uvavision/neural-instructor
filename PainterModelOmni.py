@@ -206,17 +206,17 @@ class Shape2DPainterNet(nn.Module):
                     step_color_reward[i] = 1 if color_sample[i] == predict_target[0] else -1
                     step_shape_reward[i] = 1 if shape_sample[i] == predict_target[1] else -1
 
-            # if it's a relative reference instruction,
-            # reward is considered only when previous canvas is correctly computed
-            if dialog_ix > 0:
-                for canvas_ix in range(running_reward.size(0)):
-                    # if running_reward[canvas_ix] < 0 and step_loc_reward[canvas_ix] < 0:
-                    if running_reward[canvas_ix] < 0:
-                        step_loc_reward[canvas_ix] = 0
-                        step_color_reward[canvas_ix] = 0
-                        step_shape_reward[canvas_ix] = 0
-                        if step_att_reward is not None:
-                            step_att_reward[canvas_ix] = 0
+            # # if it's a relative reference instruction,
+            # # reward is considered only when previous canvas is correctly computed
+            # if dialog_ix > 0:
+            #     for canvas_ix in range(running_reward.size(0)):
+            #         # if running_reward[canvas_ix] < 0 and step_loc_reward[canvas_ix] < 0:
+            #         if running_reward[canvas_ix] < 0:
+            #             step_loc_reward[canvas_ix] = 0
+            #             step_color_reward[canvas_ix] = 0
+            #             step_shape_reward[canvas_ix] = 0
+            #             if step_att_reward is not None:
+            #                 step_att_reward[canvas_ix] = 0
 
             current_reward = (step_loc_reward > 0) & (step_color_reward > 0) & (step_shape_reward > 0)
             for reward_ix in range(running_reward.size(0)):
