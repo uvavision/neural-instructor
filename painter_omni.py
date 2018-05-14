@@ -65,7 +65,7 @@ vocab = ['a', 'add', 'at', 'blue', 'bottom-left', 'bottom-left-of', 'bottom-midd
          'object', 'of', 'one', 'place', 'red', 'right-middle', 'right-of', 'square', 'the', 'to/at', 'top-left',
          'top-left-of', 'top-middle', 'top-of', 'top-right', 'top-right-of', 'triangle']
 train_loader = get_shape2d_painter_data_loader(split='train', batch_size=args.batch_size)
-test_loader = get_shape2d_painter_data_loader(split='val', batch_size=args.batch_size)
+test_loader = get_shape2d_painter_data_loader(split='val', batch_size=1)
 print("vocab-size: {}".format(train_loader.dataset.vocab_size))
 print(train_loader.dataset.vocab)
 assert train_loader.dataset.vocab_size == test_loader.dataset.vocab_size
@@ -90,7 +90,7 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('painter-omni-abs_abs2_rel_retrain/model_17.pth'))
 # model.load_state_dict(torch.load('painter-omni-abs_abs2_rel_retrain_success_reward//model_16.pth'))
 # model.load_state_dict(torch.load('step_gt_canvas//model_10.pth'))
-# model.load_state_dict(torch.load('boostrap//model_101.pth'))
+# model.load_state_dict(torch.load('boostrap//model_118.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
@@ -158,71 +158,31 @@ def train(epoch):
 
 def model_test():
     model.eval()
-    for batch_idx, (prev_canvas, inst, target_obj, act, raw_data) in enumerate(test_loader):
-        # for ix in range(args.batch_size):
-        #     # ix = random.randint(0, args.batch_size-1)
-        #     inst_str = ' '.join(map(train_loader.dataset.ix_to_word.get, list(inst[ix])))
-        #     next_obj_color = train_loader.dataset.num2color[target_obj[ix][0]]
-        #     next_obj_shape = train_loader.dataset.num2shape[target_obj[ix][1]]
-        #     print(inst_str)
-        #     print("target obj: {} {} {} {}".format(next_obj_color, next_obj_shape, target_obj[ix][2], target_obj[ix][3]))
-        #     if ref_obj[ix].sum() > 0:
-        #         ref_obj_color = train_loader.dataset.num2color[ref_obj[ix][0]]
-        #         ref_obj_shape = train_loader.dataset.num2shape[ref_obj[ix][1]]
-        #         print("ref obj: {} {} {} {}".format(ref_obj_color, ref_obj_shape, ref_obj[ix][2], ref_obj[ix][3]))
-        #     print("\n")
-        prev_canvas = Variable(prev_canvas.cuda(), volatile=True)
-        inst = Variable(inst.cuda(), volatile=True)
-        target_obj = Variable(target_obj.cuda())
-        # ref_obj = Variable(ref_obj.cuda())
-        optimizer.zero_grad()
-        gt_actions = torch.zeros(len(raw_data)).long()
-        for i in range(len(raw_data)):
-            print("{}: {} ({}, {}, {}, {}), {}".format(i, raw_data[i]['instruction'],
-                                                  train_loader.dataset.num2color[target_obj.data[i, 0]],
-                                                  train_loader.dataset.num2shape[target_obj.data[i, 1]],
-                                                  target_obj.data[i, 2], target_obj.data[i, 3],
-                                                  ['add', 'delete'][act[i]]))
-            if raw_data[i]['instruction'].endswith('canvas'):
-                gt_actions[i] = 1
-        print("===============")
+    results = []
+    for batch_idx, dialog in enumerate(test_loader):
+        success = model(dialog, test_loader.dataset.ix_to_word)
+        results.append(success)
+        reward_report = " success: {:.3f}".format(success)
+        print('[{:>6}/{} ({:>2.0f}%)]{} {:.3f}'.format(batch_idx, len(test_loader.dataset),
+                                                100. * batch_idx / len(test_loader),
+                                                       reward_report, sum(results)/(batch_idx+1)))
 
-        output = model(inst, prev_canvas, ref_obj=None, target_obj=None)
-        act_prediction = torch.max(output[0].data, dim=1)[1]
-        prediction = [p.data for p in output[1:]]
-        target_obj_prediction = torch.stack([torch.max(prediction[0], dim=1)[1],
-                                  torch.max(prediction[1], dim=1)[1],
-                                  torch.round(prediction[2]).long(),
-                                  torch.round(prediction[3]).long()], dim=1)
-        print((act == act_prediction.cpu()).sum())
-        fails = torch.nonzero(torch.eq(target_obj_prediction, target_obj.data).sum(dim=1) != 4)
-        fails = list(fails.squeeze())
-        for i in fails:
-            pos_ref = 'abs' if model.saved_actions[i] == 1 else 'rel'
-            print("{}, {}: {} ({}, {}, {} , {}) -> ({}, {}, {}, {}))".format(i, pos_ref, raw_data[i]['instruction'],
-                                                                         train_loader.dataset.num2color[target_obj.data[i, 0]],
-                                                                         train_loader.dataset.num2shape[target_obj.data[i, 1]],
-                                                                         target_obj.data[i, 2], target_obj.data[i, 3],
-                                                                         train_loader.dataset.num2color[target_obj_prediction[i, 0]],
-                                                                         train_loader.dataset.num2shape[target_obj_prediction[i, 1]],
-                                                                         target_obj_prediction[i, 2], target_obj_prediction[i, 3]))
-        print('aka')
 
-# model_test()
+model_test()
 
-for epoch in range(1, args.epochs + 1):
-    train(epoch)
-    # torch.save(model.state_dict(), 'boostrap_dont_consider_rel_reward_when_prev_canvas_is_wrong/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'step_gt_canvas/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'dont_consider_rel_neg_reward_when_prev_canvas_is_wrong/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_success_reward_bootstrap/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_retrain_success_reward/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_retrain/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel-separate/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'painter-omni-abs_abs_rel_resampled-shared_encoder/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'painter-omni-abs_abs_rel2/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'painter-omni-combine-exp-all/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'painter-omni-abs_rel/model_{}.pth'.format(epoch))
-    # torch.save(model.state_dict(), 'painter-omni-continue/model_{}.pth'.format(epoch))
-# #     # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
-
+# for epoch in range(1, args.epochs + 1):
+#     train(epoch)
+#     # torch.save(model.state_dict(), 'boostrap_dont_consider_rel_reward_when_prev_canvas_is_wrong/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'step_gt_canvas/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'dont_consider_rel_neg_reward_when_prev_canvas_is_wrong/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_success_reward_bootstrap/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_retrain_success_reward/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_retrain/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel-separate/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'painter-omni-abs_abs_rel_resampled-shared_encoder/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'painter-omni-abs_abs_rel2/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'painter-omni-combine-exp-all/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'painter-omni-abs_rel/model_{}.pth'.format(epoch))
+#     # torch.save(model.state_dict(), 'painter-omni-continue/model_{}.pth'.format(epoch))
+# # #     # torch.save(optimizer.state_dict(), 'painter-models/optimizer_{}.pth'.format(epoch))
+#
