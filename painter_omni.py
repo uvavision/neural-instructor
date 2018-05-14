@@ -87,11 +87,15 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('painter-abs_abs_rel_abs/model_200.pth'))
 # model.load_state_dict(torch.load('painter-omni-abs_abs_rel2/model_33.bak.pth'))
 # model.load_state_dict(torch.load('painter-omni-abs_abs2_rel-separate//model_17.pth'))
-model.load_state_dict(torch.load('painter-omni-abs_abs2_rel_retrain/model_17.pth'))
+# model.load_state_dict(torch.load('painter-omni-abs_abs2_rel_retrain/model_17.pth'))
+# model.load_state_dict(torch.load('painter-omni-abs_abs2_rel_retrain_success_reward//model_16.pth'))
+# model.load_state_dict(torch.load('step_gt_canvas//model_10.pth'))
+# model.load_state_dict(torch.load('boostrap//model_101.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
 # model_fc_loc_route = nn.Sequential(nn.Linear(64, 32), nn.ReLU(), nn.Linear(32, 2))
+
 # model_fc_loc_route.cuda()
 
 # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
@@ -111,7 +115,7 @@ def train(epoch):
         optimizer.zero_grad()
         success = model(dialog, train_loader.dataset.ix_to_word)
         losses = []
-        use_success_reward = True
+        use_success_reward = False
         if use_success_reward:
             for log_prob, reward in zip(model.color_log_probs, model.color_rewards):
                 losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
@@ -147,7 +151,7 @@ def train(epoch):
             for i in range(len(model.att_rewards)):
                 if model.att_rewards[i] is not None:
                     reward_report += "att:{:6.3f}|".format(model.att_rewards[i].mean())
-            reward_report += "success: {:.3f}".format(success)
+            reward_report += " success: {:.3f}".format(success)
             print('E:{:3} [{:>6}/{} ({:>2.0f}%)]{}'.format(
                 epoch, batch_idx * args.batch_size, len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), reward_report))
@@ -208,7 +212,11 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_retrain_success_reward/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'boostrap_dont_consider_rel_reward_when_prev_canvas_is_wrong/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'step_gt_canvas/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'dont_consider_rel_neg_reward_when_prev_canvas_is_wrong/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_success_reward_bootstrap/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_retrain_success_reward/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_retrain/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel-separate/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'painter-omni-abs_abs_rel_resampled-shared_encoder/model_{}.pth'.format(epoch))

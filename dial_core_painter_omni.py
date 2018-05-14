@@ -243,8 +243,9 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
         # max_turns = 6
         detailed_ref_types = []
         ref_types = []
-        target_ref_types = ['abs', 'abs', 'rel']
-        max_turns = len(target_ref_types)
+        # target_ref_types = ['abs', 'abs', 'abs', 'rel']
+        # max_turns = len(target_ref_types)
+        max_turns = 6
         lst_act = lst_act[:max_turns]
         for turn, act in enumerate(lst_act):
             canvas_data = [v.get_info() for k, v in agent.canvas.d_id_obj.items()]
@@ -281,11 +282,13 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
             #     break
             if turn + 1 == max_turns:
                 break
-        # if ref_types == ['abs', 'abs', 'rel', 'rel', 'abs']:
-        if ref_types == target_ref_types:
-            # if random.random() < 0.05 or detailed_ref_types[1] == INST_REL_ABS:
-            if detailed_ref_types[1] == INST_REL_ABS:
-                data.append(d_dial)
+        # # if ref_types == ['abs', 'abs', 'rel', 'rel', 'abs']:
+        # if ref_types == target_ref_types:
+        #     # if random.random() < 0.05 or detailed_ref_types[1] == INST_REL_ABS:
+        #     if detailed_ref_types[1] == INST_ABS and detailed_ref_types[2] == INST_REL_ABS:
+        #         data.append(d_dial)
+        if INST_REL_REL_ABS not in detailed_ref_types and len(d_dial['dialog_data']) == max_turns:
+            data.append(d_dial)
         # if INST_REL_REL_ABS in detailed_ref_types:
         #     data.append(d_dial)
         # if ref_types == target_ref_types and detailed_ref_types[1] == INST_REL_ABS:
@@ -301,7 +304,8 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
-        generate_data(10000000, out_json=sys.argv[1])
+        generate_data(5000, out_json=sys.argv[1])
+        #generate_data(10000000, out_json=sys.argv[1])
     else:
         generate_data(100000)
 

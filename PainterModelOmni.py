@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.distributions import Categorical
+from data_utils import *
 
 
 class InstEncoder(nn.Module):
@@ -136,6 +137,11 @@ class Shape2DPainterNet(nn.Module):
         loc_sample, loc_log_prob = sample_probs(loc_probs)
         return loc_sample, loc_log_prob
 
+    def is_abs_inst(self, inst_type, dialog_ix):
+        if inst_type[0] == INST_ABS:
+            return True
+        return False
+
     def forward(self, dialog, ix_to_word):
         self.color_rewards = []
         self.shape_rewards = []
@@ -151,17 +157,15 @@ class Shape2DPainterNet(nn.Module):
         running_reward = torch.LongTensor(final_canvas.size(0)).fill_(1)
         for dialog_ix in range(total_steps):
             # get data
-            inst, current_canvas, target, ref, _ = dialog[dialog_ix]
+            inst, current_canvas, target, ref, _, inst_type = dialog[dialog_ix]
             # if dialog_ix > 0:
             #     prev_canvas = Variable(dialog[dialog_ix - 1][1].cuda())
             inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
 
-            if dialog_ix == 0:
+            if self.is_abs_inst(inst_type, dialog_ix):
                 inst_embedding = self.inst_encoder_abs(Variable(inst.cuda()))  # Bx64
-            elif dialog_ix == 1 or dialog_ix == 2:
-                inst_embedding = self.inst_encoder_rel(Variable(inst.cuda()))  # Bx64
             else:
-                assert False
+                inst_embedding = self.inst_encoder_rel(Variable(inst.cuda()))  # Bx64
 
             # # encode instruction
             # if ref is None:
@@ -181,7 +185,7 @@ class Shape2DPainterNet(nn.Module):
 
             # sample location
             step_att_reward = None
-            if dialog_ix == 0:
+            if self.is_abs_inst(inst_type, dialog_ix):
                 loc_predict, loc_log_prob = self.loc_abs_predict(inst_embedding)
                 self.att_log_probs.append(None)
             else:
@@ -199,6 +203,7 @@ class Shape2DPainterNet(nn.Module):
                     step_loc_reward[i] = -1
                     continue
                 predict_target = final_canvas[i, loc_predict[i]]
+                # if not (predict_target == target[i]).all():
                 if predict_target.sum() < 0:
                     step_loc_reward[i] = -1
                 else:
@@ -254,6 +259,7 @@ class Shape2DPainterNet(nn.Module):
                     canvas_updated[i, loc, 1] = shape_sample[i]
                     canvas_updated[i, loc, 2] = loc // 5
                     canvas_updated[i, loc, 3] = loc % 5
+            # canvas_updated = current_canvas.long()
         success = (((canvas_updated == final_canvas).sum(dim=2) == 4).sum(dim=1) == 25).float()
         self.success_reward = (success - 0.5) * 2
         return success.mean()
