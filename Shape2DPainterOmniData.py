@@ -121,7 +121,7 @@ class Shape2DPainterData(torch.utils.data.Dataset):
 
     def encode_canvas(self, canvas_objs):
         canvas_data = np.zeros((25, 4), np.float32)
-        canvas_data.fill(-1)
+        canvas_data.fill(-2)
         for obj in canvas_objs:
             obj_encode = self.encode_obj(obj)
             canvas_data[obj_encode[-2]*5+obj_encode[-1]] = obj_encode
@@ -154,8 +154,8 @@ def shape2d_painter_data_collate(dialogs):
 def get_shape2d_painter_data_loader(split, batch_size):
     assert split in ['train', 'val', 'sample']
     datafile = {'train': 'train_abs_abs_rel2_rel.json',
-                'val': 'val_abs_abs_rel2_rel.json',
-                # 'val': 'val_random_turn.json',
+                # 'val': 'val_abs_abs_rel2_rel.json',
+                'val': 'val_random_10turn.json',
                 'sample': 'painter_omni_sample_2turns.json'}[split]
     # datafile = {'train': 'trian_abs_abs2_rel_enriched.json',
     #             'val': 'val_abs_abs2_rel.json',

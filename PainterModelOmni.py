@@ -151,9 +151,10 @@ class Shape2DPainterNet(nn.Module):
         self.loc_log_probs = []
         self.att_log_probs = []
         self.att_rewards = []
+        self.target_accuracies = []
         total_steps = len(dialog)
         final_canvas = dialog[total_steps-1][1].long()
-        canvas_updated = final_canvas.new(final_canvas.size()).fill_(-1)
+        canvas_updated = final_canvas.new(final_canvas.size()).fill_(-2)
         running_reward = torch.LongTensor(final_canvas.size(0)).fill_(1)
         for dialog_ix in range(total_steps):
             # get data
@@ -198,11 +199,14 @@ class Shape2DPainterNet(nn.Module):
             step_loc_reward = torch.zeros(loc_predict.size(0))
             step_color_reward = torch.zeros(loc_predict.size(0))
             step_shape_reward = torch.zeros(loc_predict.size(0))
+            target_correct = torch.zeros(loc_predict.size(0))
             for i in range(step_loc_reward.size(0)):
                 if loc_predict[i] < 0 or loc_predict[i] >= 25:
                     step_loc_reward[i] = -1
                     continue
                 predict_target = final_canvas[i, loc_predict[i]]
+                if (predict_target[2:] == target[i, 2:]).all():
+                    target_correct[i] = 1.0
                 # if not (predict_target == target[i]).all():
                 if predict_target.sum() < 0:
                     step_loc_reward[i] = -1
@@ -210,7 +214,7 @@ class Shape2DPainterNet(nn.Module):
                     step_loc_reward[i] = 1
                     step_color_reward[i] = 1 if color_sample[i] == predict_target[0] else -1
                     step_shape_reward[i] = 1 if shape_sample[i] == predict_target[1] else -1
-
+            self.target_accuracies.append(target_correct.mean())
             # # if it's a relative reference instruction,
             # # reward is considered only when previous canvas is correctly computed
             # if dialog_ix > 0:

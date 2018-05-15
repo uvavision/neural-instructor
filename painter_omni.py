@@ -90,7 +90,10 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('painter-omni-abs_abs2_rel_retrain/model_17.pth'))
 # model.load_state_dict(torch.load('painter-omni-abs_abs2_rel_retrain_success_reward//model_16.pth'))
 # model.load_state_dict(torch.load('step_gt_canvas//model_10.pth'))
-# model.load_state_dict(torch.load('boostrap//model_118.pth'))
+# model.load_state_dict(torch.load('boostrap//model_200.pth'))
+# model.load_state_dict(torch.load('bootstrap_success_reward////model_29.pth'))
+# model.load_state_dict(torch.load('bootstrap_log_target_error////model_182.pth'))
+# model.load_state_dict(torch.load('/data/xy4cm/Projects/painter_models/bootstrap_newcanvas_continue/model_6.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
@@ -143,11 +146,13 @@ def train(epoch):
         optimizer.step()
         if batch_idx % args.log_interval == 0:
             total_steps = len(model.loc_rewards)
-            fmt_template = "c{0}:{1:>6.3f}, s{0}:{2:>6.3f}, l{0}:{3:>6.3f} | "
+            fmt_template = "c{0}:{1:>6.3f}, s{0}:{2:>6.3f}, l{0}:{3:>6.3f}, t{0}:{4:>6.3f}| "
             reward_report = ''
             for i in range(total_steps):
                 reward_report += fmt_template.format(i, model.color_rewards[i].mean(),
-                                                     model.shape_rewards[i].mean(), model.loc_rewards[i].mean())
+                                                     model.shape_rewards[i].mean(),
+                                                     model.loc_rewards[i].mean(),
+                                                     model.target_accuracies[i])
             for i in range(len(model.att_rewards)):
                 if model.att_rewards[i] is not None:
                     reward_report += "att:{:6.3f}|".format(model.att_rewards[i].mean())
@@ -168,11 +173,14 @@ def model_test():
                                                        reward_report, sum(results)/(batch_idx+1)))
 
 
-model_test()
+# model_test()
 
-# for epoch in range(1, args.epochs + 1):
-#     train(epoch)
-#     # torch.save(model.state_dict(), 'boostrap_dont_consider_rel_reward_when_prev_canvas_is_wrong/model_{}.pth'.format(epoch))
+for epoch in range(1, args.epochs + 1):
+    train(epoch)
+    # torch.save(model.state_dict(), '/data/xy4cm/Projects/painter_models/bootstrap_newcanvas/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'bootstrap_log_target_error/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'bootstrap_success_reward/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'boostrap_dont_consider_rel_reward_when_prev_canvas_is_wrong/model_{}.pth'.format(epoch))
 #     # torch.save(model.state_dict(), 'step_gt_canvas/model_{}.pth'.format(epoch))
 #     # torch.save(model.state_dict(), 'dont_consider_rel_neg_reward_when_prev_canvas_is_wrong/model_{}.pth'.format(epoch))
 #     # torch.save(model.state_dict(), 'painter-omni-abs_abs2_rel_success_reward_bootstrap/model_{}.pth'.format(epoch))
