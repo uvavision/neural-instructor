@@ -224,7 +224,8 @@ def is_level3_ref(instruction):
 def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
     data = []
     count = 0
-    for i in tqdm(range(n_dial)):
+    for i in range(n_dial):
+    # for i in tqdm(range(n_dial)):
         d_dial = {'dial_id': i + 1, 'dialog_data': []}
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
@@ -233,9 +234,9 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
         while 'move' in lst_act:
             lst_act.remove('move')
         assert not 'move' in lst_act
-        while 'delete' in lst_act:
-            lst_act.remove('delete')
-        assert not 'delete' in lst_act
+        # while 'delete' in lst_act:
+        #     lst_act.remove('delete')
+        # assert not 'delete' in lst_act
         agent = Agent(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
         visualize_samples = []
         # turn3_rel_ref = False
@@ -247,13 +248,14 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
         # max_turns = len(target_ref_types)
         max_turns = 10
         lst_act = lst_act[:max_turns]
+        valid = False
         for turn, act in enumerate(lst_act):
             canvas_data = [v.get_info() for k, v in agent.canvas.d_id_obj.items()]
             activities = agent.get_activity(act)
             current_canvas = [v.get_info() for k, v in agent.canvas.d_id_obj.items()]
             # if is_level3_ref(activities[0]['message']) or random.random() < 0.2:
             d = {'turn': turn + 1, 'config': agent.config2dict(), 'activities': activities,
-                 # 'prev_canvas': canvas_data,
+                 'prev_canvas': canvas_data,
                  'current_canvas': current_canvas}
             d_dial['dialog_data'].append(d)
             count += 1
@@ -265,12 +267,15 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
             agent.reset_config(mode_loc=None, mode_ref=mode_ref, is_viable=is_viable)
             ref_type = inst_ref_type(activities[0]['message'])
             detailed_ref_types.append(ref_type)
-            if ref_type != INST_REL:
-                activities[0]['features']['obj_ref'] = None
-            if ref_type == INST_REL:
+            # if ref_type != INST_REL:
+            #     activities[0]['features']['obj_ref'] = None
+            if ref_type == INST_ABS:
+                ref_types.append("abs")
+            elif ref_type == INST_REL or ref_type == INST_REL_ABS:
                 ref_types.append("rel")
             else:
-                ref_types.append("abs")
+                # don't consider INST_REL_REL_ABS
+                ref_types.append("invalid")
             # if turn + 1 == 2 and inst_ref_type(activities[0]['message']) == INST_REL:
             #     turn2_rel_ref = True
             #     assert activities[0]['features']['obj_ref'] is not None
@@ -280,6 +285,12 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
             # if turn + 1 == 3 and inst_ref_type(activities[0]['message']) == INST_REL:
             #     turn3_rel_ref = True
             #     break
+            if turn + 1 >= 5:
+                if ref_types[-3:] == ['abs', 'rel', 'rel']:
+                    acts = [d['activities'][0]['act'] for d in d_dial['dialog_data'][-3:]]
+                    if 'delete' in acts:
+                        valid = True
+                        break
             if turn + 1 == max_turns:
                 break
         # # if ref_types == ['abs', 'abs', 'rel', 'rel', 'abs']:
@@ -289,10 +300,17 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
         #         data.append(d_dial)
         # if INST_REL_REL_ABS not in detailed_ref_types and len(d_dial['dialog_data']) == max_turns:
         #     data.append(d_dial)
-        if INST_REL_REL_ABS not in detailed_ref_types:
+        if valid:
+            d_dial['dialog_data'] = d_dial['dialog_data'][-3:]
+            msgs = [d['activities'][0]['message'] for d in d_dial['dialog_data']]
+            for msg in msgs:
+                print(msg)
+            print("===================")
             data.append(d_dial)
-            if len(data) == 1000:
-                break
+        # if INST_REL_REL_ABS not in detailed_ref_types:
+        #     data.append(d_dial)
+        #     if len(data) == 1000:
+        #         break
         # if INST_REL_REL_ABS in detailed_ref_types:
         #     data.append(d_dial)
         # if ref_types == target_ref_types and detailed_ref_types[1] == INST_REL_ABS:
