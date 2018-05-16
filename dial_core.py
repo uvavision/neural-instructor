@@ -105,9 +105,9 @@ class Agent(object):
         row_r, col_r, self.obj_ref, self.loc_rel = self.canvas.select_grid_obj_ref(select_empty)
         row_a, col_a, self.loc_abs = self.canvas.select_grid_loc_abs(select_empty)
         if row_a is not None and self.mode_loc == LOC_ABS:
-            row = row_a, col = col_a
+            row, col = row_a, col_a
         if row_r is not None and self.mode_loc == LOC_REL:
-            row = row_r, col = col_r
+            row, col = row_r, col_r
         if row is not None and col is not None:
             if select_empty:
                 color = random.choice(COLORS)
@@ -299,7 +299,6 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json='data.json
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
         print(lst_act)
-        # lst_act = [ADD] * 4 + [DELETE]
         d_id_act = OrderedDict()
         agent = Agent(mode_loc=None, mode_ref=mode_ref)
         for turn, act in enumerate(lst_act):
@@ -400,5 +399,5 @@ def gen_dialog_flow():
 
 
 if __name__ == '__main__':
-    generate_data(1)
+    generate_data(100)
     # gen_dialog_flow()
