@@ -101,9 +101,13 @@ class Agent(object):
             return
         if not self.mode_loc:
             self.mode_loc = random.choice(MODES_LOC)
-        row, col, self.loc_abs = self.canvas.select_grid_loc_abs(select_empty)
-        if row is None:
-            row, col, self.obj_ref, self.loc_rel = self.canvas.select_grid_obj_ref(select_empty)
+        row = col = None
+        row_r, col_r, self.obj_ref, self.loc_rel = self.canvas.select_grid_obj_ref(select_empty)
+        row_a, col_a, self.loc_abs = self.canvas.select_grid_loc_abs(select_empty)
+        if row_a is not None and self.mode_loc == LOC_ABS:
+            row = row_a, col = col_a
+        if row_r is not None and self.mode_loc == LOC_REL:
+            row = row_r, col = col_r
         if row is not None and col is not None:
             if select_empty:
                 color = random.choice(COLORS)
@@ -124,13 +128,13 @@ class Agent(object):
         if act == ADD:
             self.act = act
             self.get_add_activity(select_empty=(True and is_viable))
-            # self.message = generate_act_message_by_tmpl(self.canvas, self.obj, self.act, self.mode_ref, role, da)
+            self.message = generate_act_message_by_tmpl(self.canvas, self.obj, self.act, self.mode_ref)
             self.canvas.add(self.obj)
             activities.append(self.activity2dict())
         if act == DELETE:
             self.act = act
             self.get_delete_activity(select_empty=not(False ^ is_viable))
-            # self.message = generate_act_message_by_tmpl(self.canvas, self.obj, self.act, self.mode_ref, role, da)
+            self.message = generate_act_message_by_tmpl(self.canvas, self.obj, self.act, self.mode_ref)
             self.canvas.delete(self.obj)
             activities.append(self.activity2dict())
         if act == MOVE:
@@ -152,7 +156,6 @@ class Agent(object):
         return activities
 
 
-    '''
     def generate_act_message_by_tmpl(self, act=None, obj=None):
         if obj is None:
             obj = self.obj
@@ -171,10 +174,9 @@ class Agent(object):
                 t_loc_rel = self.canvas.get_loc_desc(self.loc_abs, self.loc_rel, self.obj_ref, self.mode_ref)
         message = tmpl2txt_act(act, t_obj, t_loc_abs, t_loc_rel)
         return message
-    '''
 
 
-def generate_act_message_by_tmpl(canvas, obj, act, mode_ref, role=None, da=None):
+def generate_act_message_by_tmpl(canvas, obj, act, mode_ref, role=USER, da=REQUEST):
     t_loc_abs = t_loc_rel = ''
     if act == ADD:
         t_obj = canvas.get_obj_desc(obj, MODE_FULL, mode_ref)
@@ -266,6 +268,10 @@ def get_next_turn(agent, d_activity_pre=None, pre_role=USER, pre_da=REQUEST, is_
             # alter_type = random.sample([1, 2], n) + [3]
             alter_type = [3]
         d_activity_alter, features_altered = get_altered_activity(agent, d_activity_pre, alter_type, not is_viable)
+        if agent.act == ADD:
+            agent.canvas.add(agent.obj)
+        if agent.act == DELETE:
+            agent.canvas.delete(agent.obj)
         for feature in features_altered:
             d_para[feature] = d_activity_alter[OBJ][feature]
     if role == AGENT and da == ASK_Q:
@@ -292,8 +298,8 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json='data.json
         d_dial = {'dial_id': i + 1, 'dialog_data': []}
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
-        lst_act = [ADD, ADD, DELETE]
         print(lst_act)
+        # lst_act = [ADD] * 4 + [DELETE]
         d_id_act = OrderedDict()
         agent = Agent(mode_loc=None, mode_ref=mode_ref)
         for turn, act in enumerate(lst_act):
@@ -311,9 +317,9 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json='data.json
                      'prev_canvas': prev_canvas, 'current_canvas': current_canvas}
                 d_dial['dialog_data'].append(d)
             # print('@@@', agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
-            # print("###", agent.message)
-            # grid = grid_maker(agent.canvas.d_id_obj)
-            # pprint(grid)
+            print("###", agent.message)
+            grid = grid_maker(agent.canvas.d_id_obj)
+            pprint(grid)
             # print(agent.canvas.get_desc())
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=mode_ref)
@@ -330,7 +336,7 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json='data.json
         json.dump(data, open(out_json, 'w'), indent=4)
 
 
-def get_para_act(agent, act=None, obj=None, mode_ref=None):
+def get_para_act(agent, is_viable=True, act=None, obj=None, mode_ref=None):
     canvas = agent.canvas
     act = agent.act if act is None else act
     obj = agent.obj if obj is None else obj
@@ -338,7 +344,10 @@ def get_para_act(agent, act=None, obj=None, mode_ref=None):
     if act == ADD:
         t_obj = canvas.get_obj_desc(obj, MODE_FULL, mode_ref)
     if act == DELETE:
-        t_obj = canvas.get_obj_desc(obj, mode_ref, mode_ref)
+        if not is_viable:
+            t_obj = canvas.get_obj_desc(obj, MODE_FULL, mode_ref)
+        else:
+            t_obj = canvas.get_obj_desc(obj, mode_ref, mode_ref)
     if act == MOVE:
         t_obj = canvas.get_obj_desc(obj, mode_ref, mode_ref)
         if obj.loc_abs:
@@ -347,12 +356,13 @@ def get_para_act(agent, act=None, obj=None, mode_ref=None):
             t_loc_rel = canvas.get_loc_desc(obj.loc_abs, obj.loc_rel, obj.obj_ref, mode_ref)
     return {ACT: act, T_OBJ: t_obj, T_LOC_ABS: t_loc_abs, T_LOC_REL: t_loc_rel}
 
+
 def gen_dialog_flow():
     n_obj = random.randint(3, 6)
     lst_act = get_act_sequence(n_obj)
     print('ACTION SEQUENCE', lst_act)
     lst_act.reverse()
-    role_pre = da_pre = is_viable = act = d_activity_pre = None
+    is_viable = act = d_activity_pre = None
     agent = Agent(mode_loc=None, mode_ref=MODE_MIN)
     role, da, d_para, _ = get_next_turn(agent, None, None, None)
     while True:
@@ -369,9 +379,11 @@ def gen_dialog_flow():
             d_activity = agent.get_activities(act, is_viable)[0]
             d_activity[IS_VIABLE] = is_viable
             d_activity_pre = d_activity
-            d_para = get_para_act(agent)
+            d_para = get_para_act(agent, is_viable)
         text = tmpl2txt_da(role, da, act, d_para, is_viable)
         print('{} | {} | viable:{} || {}'.format(role[0].upper(), da, is_viable, text))
+        grid = grid_maker(agent.canvas.d_id_obj)
+        pprint(grid)
         role_pre, da_pre = role, da
         if len(lst_act) > 0:
             role, da, d_para, is_viable = get_next_turn(agent, d_activity_pre, role_pre, da_pre, is_viable)
@@ -383,9 +395,10 @@ def gen_dialog_flow():
             print('{} | {} || {}'.format(USER[0].upper(), END, text))
             print()
             break
+    grid = grid_maker(agent.canvas.d_id_obj)
+    pprint(grid)
 
 
 if __name__ == '__main__':
-    # generate_data(100)
-    for i in range(10):
-        gen_dialog_flow()
+    generate_data(1)
+    # gen_dialog_flow()

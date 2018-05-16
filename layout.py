@@ -105,21 +105,21 @@ class Canvas:
     def size(self):
         return len(self.d_id_obj)
 
-    def select_grid_obj_ref(self, select_empty=True, is_viable=True, excluded_grids=[]):
-        if is_viable and self.size() - len(excluded_grids) <= 0:
+    def select_grid_obj_ref(self, select_empty=True, excluded_grids=[]):
+        if self.size() - len(excluded_grids) <= 0:
             return None, None, None, None
         options = []
-        for (row, col), obj_ref in self.d_grid_obj.items():
-            if (row, col) in excluded_grids:
+        for (row_ref, col_ref), obj_ref in self.d_grid_obj.items():
+            if (row_ref, col_ref) in excluded_grids:
                 continue
             for (row_d, col_d), loc_rel in DICT_LOC_DELTA2NAME.items():
-                row_adj, col_adj = row + row_d, col + col_d
+                row_adj, col_adj = row_ref + row_d, col_ref + col_d
                 if not (0 <= row_adj < self.grid_size and 0 <= col_adj < self.grid_size):
                     continue
-                if select_empty and is_viable:
+                if select_empty:
                     if (row_adj, col_adj) not in self.d_grid_obj:
                         options.append((row_adj, col_adj, obj_ref, loc_rel))
-                elif not select_empty and is_viable:
+                else:
                     if (row_adj, col_adj) in self.d_grid_obj:
                         options.append((row_adj, col_adj, obj_ref, loc_rel))
         if len(options) > 0:
@@ -243,7 +243,7 @@ class Canvas:
                 return False
             return True
         if act == DELETE:
-            if obj.id_ in self.d_id_obj:
+            if obj.id_ in self.d_id_obj or (obj.row, obj.col) in self.d_grid_obj:
                 return True
             return False
         return False
@@ -265,6 +265,9 @@ class Canvas:
             if obj.id_ in self.d_id_obj:
                 del self.d_id_obj[obj.id_]
             if (obj.row, obj.col) in self.d_grid_obj:
+                obj = self.d_grid_obj[(obj.row, obj.col)]
+                if obj.id_ in self.d_id_obj:
+                    del self.d_id_obj[obj.id_]
                 del self.d_grid_obj[(obj.row, obj.col)]
             if obj.id_ in self.d_id_rel:
                 del self.d_id_rel[obj.id_]
