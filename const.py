@@ -20,8 +20,12 @@ COLORS = ['red', 'green', 'blue']
 SHAPES = ['square', 'circle', 'triangle']
 
 MODE_FULL = 'full'
-MODE_MIN = 'min'
-MODES_REF = [MODE_MIN, MODE_FULL]
+# MODE_MIN = 'min'
+MODE_CS = 'color_shape'
+MODE_LOC = 'locaton'
+MODE_LOC_ABS = 'locaton_abs'
+MODE_LOC_REL = 'locaton_rel'
+MODES_REF = [MODE_CS, MODE_LOC_ABS, MODE_LOC_REL, MODE_FULL]
 
 LOC_ABS = 'loc_abs'  # 'location_absolute'
 LOC_REL = 'loc_rel'  #'location_relative'

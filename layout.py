@@ -105,13 +105,21 @@ class Canvas:
     def size(self):
         return len(self.d_id_obj)
 
-    def select_grid_obj_ref(self, select_empty=True, excluded_grids=[]):
+    def select_grid_obj_ref(self, select_empty, excluded_grids=[]):
         if self.size() - len(excluded_grids) <= 0:
             return None, None, None, None
         options = []
         for (row_ref, col_ref), obj_ref in self.d_grid_obj.items():
             if (row_ref, col_ref) in excluded_grids:
                 continue
+            d_features = self.get_obj_features(obj_ref)
+            features = [item for sublist in d_features.values() for item in sublist]
+            if features == [] or features is None:
+                continue
+            if len(features) == 1:
+                color, shape, loc_abs, loc_rel, obj_ref = features[0]
+                if color is None and shape is None and loc_abs is None:
+                    continue
             for (row_d, col_d), loc_rel in DICT_LOC_DELTA2NAME.items():
                 row_adj, col_adj = row_ref + row_d, col_ref + col_d
                 if not (0 <= row_adj < self.grid_size and 0 <= col_adj < self.grid_size):
@@ -141,17 +149,22 @@ class Canvas:
         row, col = random.choice(l_selected)
         return row, col, DICT_LOC_ABS2NAME[(row, col)]
 
-    def get_obj_desc(self, obj,  mode_ref=None, mode_ref_loc=None, features=None):
+    def get_obj_desc(self, obj, mode_ref=None, mode_ref_loc=None, features=None):
         if not features:
-            features = self.get_obj_features(obj, mode_ref)
+            d_features = self.get_obj_features(obj)
+            if mode_ref in d_features:
+                features = d_features[mode_ref]
+            else:
+                features = [item for sublist in d_features.values() for item in sublist]
         if len(features) > 0:
             random.shuffle(features)
-            color, shape, loc_abs, loc_rel, obj_ref = None, None, None, None, None
-            for color, shape, loc_abs, loc_rel, obj_ref in features:
-                if loc_abs is None and loc_rel is None:
-                    break
-                if loc_abs and loc_rel is None:
-                    break
+            color, shape, loc_abs, loc_rel, obj_ref = features[0]
+            # color, shape, loc_abs, loc_rel, obj_ref = None, None, None, None, None
+            # for color, shape, loc_abs, loc_rel, obj_ref in features:
+            #     if loc_abs is None and loc_rel is None:
+            #         break
+            #     if loc_abs and loc_rel is None:
+            #         break
             obj.features = {COLOR: obj.color, SHAPE: obj.shape,
                             LOC_ABS: loc_abs, LOC_REL: loc_rel,
                             OBJ_REF: obj_ref.to_dict() if obj_ref else None}
@@ -160,18 +173,22 @@ class Canvas:
             text = s.substitute(color=xs(color), shape=xs(shape))
             text += ' ' + self.get_loc_desc(loc_abs, loc_rel, obj_ref, mode_ref_loc)
             return re.sub(' +', ' ', text)
-        return self.get_obj_ref_desc(obj)
+        return None
+        # return self.get_obj_ref_desc(obj)
 
     def get_obj_ref_desc(self, obj, mode_ref=None):
-        features = self.get_obj_features(obj, mode_ref)
+        d_features = self.get_obj_features(obj)
+        features = [item for sublist in d_features.values() for item in sublist]
         random.shuffle(features)
         for shape, color, loc_abs, loc_rel, obj_ref in features:
             if loc_abs is None and loc_rel is None:
                 return self.get_obj_desc(obj, mode_ref, mode_ref, [(shape, color, None, None, None)])
             if loc_abs is not None: # abs
-                return self.get_obj_desc(obj, mode_ref, mode_ref)
-            # if obj_ref: # obj_ref.row and obj_ref.col) in DICT_LOC_ABS2NAME:
-            #     return self.get_obj_desc(obj, mode_ref, mode_ref)
+                return self.get_obj_desc(obj, mode_ref, mode_ref, [(shape, color, loc_abs, None, None)])
+            if obj_ref and (obj_ref.row, obj_ref.col) in DICT_LOC_ABS2NAME:
+                return self.get_obj_desc(obj, mode_ref, mode_ref, [(None, None, None, loc_rel, obj_ref)])
+        return None
+        '''
         tmpl = random.choice(DICT_TEMPLATES[OBJ_REF])
         s = Template(tmpl)
         for (row_ref, col_ref), loc_abs in DICT_LOC_ABS2NAME.items():
@@ -182,6 +199,7 @@ class Canvas:
                 text = s.substitute(color=obj.color, shape=obj.shape, loc_rel=loc_rel, loc_abs=loc_abs)
                 return text
         return ''
+        '''
 
     def get_loc_desc(self, loc_abs, loc_rel, obj_ref, mode_ref=None):
         mode_loc = None
@@ -232,7 +250,8 @@ class Canvas:
 
     def update_ref_obj_features(self):  # after action completed
         for id_, obj in self.d_id_obj.items():
-            features = self.get_obj_features(obj)
+            d_features = self.get_obj_features(obj)
+            features = [item for sublist in d_features.values() for item in sublist]
             self.d_id_feature[id_] = features
 
     def is_action_viable(self, obj, act):
@@ -278,13 +297,15 @@ class Canvas:
             return STATUS_SUCCESSFUL
         return STATUS_FAILED
 
-    def get_obj_features(self, obj, mode_ref=None):
+    def get_obj_features(self, obj):
         # feature: color, shape, loc_abs, loc_rel, obj_ref
-        lst = []
+        d_feature = defaultdict(list)
         loc_abs = loc_rel = obj_ref = None
         if (obj.row, obj.col) in DICT_LOC_ABS2NAME:
             loc_abs = DICT_LOC_ABS2NAME[(obj.row, obj.col)]
-            lst.append((None, None, loc_abs, None, None))
+            # d_feature[MODE_LOC].append((None, None, loc_abs, None, None))
+            d_feature[MODE_LOC_ABS].append((None, None, loc_abs, None, None))
+            d_feature[MODE_FULL].append((obj.color, obj.shape, loc_abs, None, None))
         if obj.id_ in self.d_id_rel and len(self.d_id_rel[obj.id_]) > 1:
             options = []
             for obj_ref_id, loc_rel in self.d_id_rel[obj.id_].items():
@@ -301,9 +322,9 @@ class Canvas:
             if len(options) > 0:
                 random.shuffle(options)
                 loc_rel, obj_ref = options[0]
-                lst.append((None, None, None, loc_rel, obj_ref))
-            else:
-                loc_rel, obj_ref = None, None
+                # d_feature[MODE_LOC].append((None, None, None, loc_rel, obj_ref))
+                d_feature[MODE_LOC_REL].append((None, None, None, loc_rel, obj_ref))
+                d_feature[MODE_FULL].append((obj.color, obj.shape, None, loc_rel, obj_ref))
         else:
             for id_, obj_r in self.d_id_obj.items():
                 rel = get_rel_loc(obj, obj_r)
@@ -314,19 +335,14 @@ class Canvas:
                 # if rel:
                 #     loc_rel, obj_ref = rel, obj_r
                 #     break
-        if mode_ref == MODE_FULL:
-            lst_full = []
-            if loc_abs:
-                lst_full.append((obj.color, obj.shape, loc_abs, None, None))
-            if loc_rel and obj_ref:
-                lst_full.append((obj.color, obj.shape, None, loc_rel, obj_ref))
-            return lst_full
+        if obj_ref and loc_rel:
+            d_feature[MODE_FULL].append((obj.color, obj.shape, None, loc_rel, obj_ref))
         if obj.color in self.d_feature_id and len(self.d_feature_id[obj.color]) == 1:
-            lst.append((obj.color, None, None, None, None))
+            d_feature[MODE_CS].append((obj.color, None, None, None, None))
         if obj.shape in self.d_feature_id and len(self.d_feature_id[obj.shape]) == 1:
-            lst.append((None, obj.shape, None, None, None))
+            d_feature[MODE_CS].append((None, obj.shape, None, None, None))
         if (obj.color, obj.shape) in self.d_feature_id and len(self.d_feature_id[(obj.color, obj.shape)]) == 1:
-            lst.append((obj.color, obj.shape, None, None, None))
+            d_feature[MODE_CS].append((obj.color, obj.shape, None, None, None))
         if self.size() == 1:
-            lst.append((None, None, None, None, None))
-        return lst
+            d_feature[MODE_CS].append((None, None, None, None, None))
+        return d_feature

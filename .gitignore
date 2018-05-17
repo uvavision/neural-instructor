@@ -1,0 +1,5 @@
+
+__pycache__/layout.cpython-36.pyc
+*.pyc
+*.xml
+.idea/neural-instructor.iml

@@ -71,8 +71,6 @@ class Agent(object):
     def get_add_activity(self, select_empty=True, excluded_grids=[]):
         if self.canvas.size() == 0:
             self.mode_loc == LOC_ABS
-        color = random.choice(COLORS)
-        shape = random.choice(SHAPES)
         options = []
         row_abs, col_abs, loc_abs = self.canvas.select_grid_loc_abs(select_empty)
         if row_abs is not None and col_abs is not None:
@@ -82,6 +80,8 @@ class Agent(object):
             options.append(LOC_REL)
         if len(options) == 0:
             return
+        color = random.choice(COLORS)
+        shape = random.choice(SHAPES)
         if self.mode_loc in options:
             mode_loc = self.mode_loc
         else:
@@ -99,15 +99,27 @@ class Agent(object):
         if self.canvas.size() == 1 and not select_empty:
             self.obj = list(self.canvas.d_id_obj.values())[0]
             return
-        if not self.mode_loc:
-            self.mode_loc = random.choice(MODES_LOC)
         row = col = None
-        row_r, col_r, self.obj_ref, self.loc_rel = self.canvas.select_grid_obj_ref(select_empty)
         row_a, col_a, self.loc_abs = self.canvas.select_grid_loc_abs(select_empty)
-        if row_a is not None and self.mode_loc == LOC_ABS:
-            row, col = row_a, col_a
+        row_r, col_r, self.obj_ref, self.loc_rel = self.canvas.select_grid_obj_ref(select_empty)
+        options = []
+        if row_a is not None:
+            options.append(LOC_ABS)
+        if row_r is not None:
+            options.append(LOC_REL)
+        if options == []:
+            for id_, obj in self.canvas.d_id_obj.items():
+                d_features = self.canvas.get_obj_features(obj)
+                if MODE_CS in d_features:
+                    self.obj = obj
+                    break
+            return
+        if self.mode_loc not in options:
+            self.mode_loc = random.choice(options)
         if row_r is not None and self.mode_loc == LOC_REL:
             row, col = row_r, col_r
+        if row_a is not None and self.mode_loc == LOC_ABS:
+            row, col = row_a, col_a
         if row is not None and col is not None:
             if select_empty:
                 color = random.choice(COLORS)
@@ -118,8 +130,6 @@ class Agent(object):
                     if (row, col) == (obj.row, obj.col):
                         self.obj = obj
                         break
-        if not self.obj:
-            self.obj = random.choice(list(self.canvas.d_id_obj.values()))
 
     def get_activities(self, act, is_viable=True):
         if not self.mode_loc:
@@ -128,13 +138,16 @@ class Agent(object):
         if act == ADD:
             self.act = act
             self.get_add_activity(select_empty=(True and is_viable))
-            self.message = generate_act_message_by_tmpl(self.canvas, self.obj, self.act, self.mode_ref)
+            self.message = generate_act_message_by_tmpl(self.canvas, self.obj, self.act, MODE_FULL)
             self.canvas.add(self.obj)
             activities.append(self.activity2dict())
         if act == DELETE:
             self.act = act
             self.get_delete_activity(select_empty=not(False ^ is_viable))
-            self.message = generate_act_message_by_tmpl(self.canvas, self.obj, self.act, self.mode_ref)
+            if self.obj is None:
+                return []
+            mode_ref = random.choice(MODES_REF)
+            self.message = generate_act_message_by_tmpl(self.canvas, self.obj, self.act, mode_ref)
             self.canvas.delete(self.obj)
             activities.append(self.activity2dict())
         if act == MOVE:
@@ -156,38 +169,15 @@ class Agent(object):
         return activities
 
 
-    def generate_act_message_by_tmpl(self, act=None, obj=None):
-        if obj is None:
-            obj = self.obj
-        if not act:
-            act = self.act
-        t_loc_abs = t_loc_rel = ''
-        if act == ADD:
-            t_obj = self.canvas.get_obj_desc(obj, MODE_FULL, self.mode_ref)
-        if act == DELETE:
-            t_obj = self.canvas.get_obj_desc(obj, self.mode_ref, self.mode_ref)
-        if act == MOVE:
-            t_obj = self.canvas.get_obj_desc(obj, self.mode_ref, self.mode_ref)
-            if self.loc_abs:
-                t_loc_abs = self.canvas.get_loc_desc(self.loc_abs, self.loc_rel, self.obj_ref, self.mode_ref)
-            if self.loc_rel and self.obj_ref:
-                t_loc_rel = self.canvas.get_loc_desc(self.loc_abs, self.loc_rel, self.obj_ref, self.mode_ref)
-        message = tmpl2txt_act(act, t_obj, t_loc_abs, t_loc_rel)
-        return message
-
-
 def generate_act_message_by_tmpl(canvas, obj, act, mode_ref, role=USER, da=REQUEST):
     t_loc_abs = t_loc_rel = ''
-    if act == ADD:
-        t_obj = canvas.get_obj_desc(obj, MODE_FULL, mode_ref)
-    if act == DELETE:
-        t_obj = canvas.get_obj_desc(obj, mode_ref, mode_ref)
-    if act == MOVE:
-        t_obj = canvas.get_obj_desc(obj, mode_ref, mode_ref)
-        if obj.loc_abs:
-            t_loc_abs = canvas.get_loc_desc(obj.loc_abs, obj.loc_rel, obj.obj_ref, mode_ref)
-        if obj.loc_rel and obj.obj_ref:
-            t_loc_rel = canvas.get_loc_desc(obj.loc_abs, obj.loc_rel, obj.obj_ref, mode_ref)
+    t_obj = canvas.get_obj_desc(obj, mode_ref, mode_ref)
+    # if act == MOVE:
+    #     t_obj = canvas.get_obj_desc(obj, mode_ref, mode_ref)
+    #     if obj.loc_abs:
+    #         t_loc_abs = canvas.get_loc_desc(obj.loc_abs, obj.loc_rel, obj.obj_ref, mode_ref)
+    #     if obj.loc_rel and obj.obj_ref:
+    #         t_loc_rel = canvas.get_loc_desc(obj.loc_abs, obj.loc_rel, obj.obj_ref, mode_ref)
     message = tmpl2txt_act(act, da, role, t_obj, t_loc_abs, t_loc_rel)
     return message
 
@@ -292,37 +282,36 @@ def grid_maker(d_id_obj, h=GRID_SIZE, w=GRID_SIZE):
     return grid
 
 
-def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json='data.json'):
+def generate_data(n_dial, is_viable=True, mode_ref=None, out_json=None):
     data = []
     for i in range(n_dial):
         d_dial = {'dial_id': i + 1, 'dialog_data': []}
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
         print(lst_act)
+        is_discard = False
         d_id_act = OrderedDict()
         agent = Agent(mode_loc=None, mode_ref=mode_ref)
         for turn, act in enumerate(lst_act):
             turn = turn + 1
             prev_canvas = [ele.to_dict() for ele in agent.canvas.d_id_obj.values()]
             activities = agent.get_activities(act)
-            # print('$BEFORE', activities)
-            # print('$BEFORE', activities[0]['message'])
-            # print('$AFTER', activities_alter)
-            # print('$AFTER', activities_alter[0]['message'])
+            if activities is None or activities == []:
+                is_discard = True
+                break
             current_canvas = [ele.to_dict() for ele in agent.canvas.d_id_obj.values()]
             for d_activity in activities:
                 d_id_act.setdefault(d_activity[OBJ][ID], []).append(d_activity[ACT])
                 d = {'turn': turn, 'config': agent.config2dict(), 'activities': activities,
                      'prev_canvas': prev_canvas, 'current_canvas': current_canvas}
                 d_dial['dialog_data'].append(d)
-            # print('@@@', agent.act, agent.obj, agent.loc_abs, agent.loc_rel, agent.obj_ref)
-            print("###", agent.message)
             grid = grid_maker(agent.canvas.d_id_obj)
+            print("#", agent.act, '#', agent.message)
             pprint(grid)
-            # print(agent.canvas.get_desc())
             agent.reset_activity()
             agent.reset_config(mode_loc=None, mode_ref=mode_ref)
-        is_discard = False
+        if is_discard:
+            continue
         for k, v in d_id_act.items():
             if v not in ([ADD], [ADD, DELETE]):
                 is_discard = True
@@ -362,7 +351,7 @@ def gen_dialog_flow():
     print('ACTION SEQUENCE', lst_act)
     lst_act.reverse()
     is_viable = act = d_activity_pre = None
-    agent = Agent(mode_loc=None, mode_ref=MODE_MIN)
+    agent = Agent()
     role, da, d_para, _ = get_next_turn(agent, None, None, None)
     while True:
         if role == USER and da == REQUEST:
@@ -399,5 +388,5 @@ def gen_dialog_flow():
 
 
 if __name__ == '__main__':
-    generate_data(100)
+    generate_data(10)
     # gen_dialog_flow()
