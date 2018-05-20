@@ -151,17 +151,20 @@ class Shape2DPainterNet(nn.Module):
         self.loc_log_probs = []
         self.att_log_probs = []
         self.att_rewards = []
-        self.target_accuracies = []
+        self.target_rewards = []
         total_steps = len(dialog)
         final_canvas = dialog[total_steps-1][1].long()
-        canvas_updated = final_canvas.new(final_canvas.size()).fill_(-2)
+        init_canvas = dialog[0][6].long()
+        canvas_updated = init_canvas.clone()
         running_reward = torch.LongTensor(final_canvas.size(0)).fill_(1)
         for dialog_ix in range(total_steps):
             # get data
-            inst, current_canvas, target, ref, _, inst_type = dialog[dialog_ix]
+            inst, current_canvas, target, ref, _, inst_type, prev_canvas, act = dialog[dialog_ix]
             # if dialog_ix > 0:
             #     prev_canvas = Variable(dialog[dialog_ix - 1][1].cuda())
             inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
+            # inst_type in a batch much be the same
+            assert ((inst_type - inst_type[0]) == 0).all()
 
             if self.is_abs_inst(inst_type, dialog_ix):
                 inst_embedding = self.inst_encoder_abs(Variable(inst.cuda()))  # Bx64
@@ -199,22 +202,29 @@ class Shape2DPainterNet(nn.Module):
             step_loc_reward = torch.zeros(loc_predict.size(0))
             step_color_reward = torch.zeros(loc_predict.size(0))
             step_shape_reward = torch.zeros(loc_predict.size(0))
-            target_correct = torch.zeros(loc_predict.size(0))
+            target_reward = torch.zeros(loc_predict.size(0)).fill_(-1)
             for i in range(step_loc_reward.size(0)):
                 if loc_predict[i] < 0 or loc_predict[i] >= 25:
                     step_loc_reward[i] = -1
                     continue
-                predict_target = final_canvas[i, loc_predict[i]]
+                if act[i] == 0:
+                    # when the act is add, it must predict an object in the final canvas
+                    predict_target = final_canvas[i, loc_predict[i]]
+                else:
+                    # when the act is delete, it must predict and object in the initial canvas
+                    predict_target = init_canvas[i, loc_predict[i]]
                 if (predict_target[2:] == target[i, 2:]).all():
-                    target_correct[i] = 1.0
+                    target_reward[i] = 1.0
                 # if not (predict_target == target[i]).all():
                 if predict_target.sum() < 0:
                     step_loc_reward[i] = -1
                 else:
                     step_loc_reward[i] = 1
-                    step_color_reward[i] = 1 if color_sample[i] == predict_target[0] else -1
-                    step_shape_reward[i] = 1 if shape_sample[i] == predict_target[1] else -1
-            self.target_accuracies.append(target_correct.mean())
+                    # only consider color and shape prediction when the act is add
+                    if act[i] == 0:
+                        step_color_reward[i] = 1 if color_sample[i] == predict_target[0] else -1
+                        step_shape_reward[i] = 1 if shape_sample[i] == predict_target[1] else -1
+            self.target_rewards.append(target_reward)
             # # if it's a relative reference instruction,
             # # reward is considered only when previous canvas is correctly computed
             # if dialog_ix > 0:
@@ -227,13 +237,14 @@ class Shape2DPainterNet(nn.Module):
             #             if step_att_reward is not None:
             #                 step_att_reward[canvas_ix] = 0
 
-            current_reward = (step_loc_reward > 0) & (step_color_reward > 0) & (step_shape_reward > 0)
-            for reward_ix in range(running_reward.size(0)):
-                if running_reward[reward_ix] > 0 and current_reward[reward_ix] == 1:
-                    running_reward[reward_ix] = 1
-                else:
-                    running_reward[reward_ix] = -1
-            self.running_reward = running_reward
+            # current_reward = (step_loc_reward > 0) & (step_color_reward > 0) & (step_shape_reward > 0)
+            # for reward_ix in range(running_reward.size(0)):
+            #     if running_reward[reward_ix] > 0 and current_reward[reward_ix] == 1:
+            #         running_reward[reward_ix] = 1
+            #     else:
+            #         running_reward[reward_ix] = -1
+            # self.running_reward = running_reward
+
             # if ref is not None:
             #     for canvas_ix in range(canvas_updated.size(0)):
             #         final_canvas1 = final_canvas[canvas_ix]
@@ -257,12 +268,15 @@ class Shape2DPainterNet(nn.Module):
             self.color_rewards.append(step_color_reward)
             self.shape_rewards.append(step_shape_reward)
             for i in range(step_loc_reward.size(0)):
-                if step_loc_reward[i] > 0 and step_color_reward[i] > 0 and step_shape_reward[i] > 0:
+                if act[i] == 0 and step_loc_reward[i] > 0 and step_color_reward[i] > 0 and step_shape_reward[i] > 0:
                     loc = loc_predict[i]
                     canvas_updated[i, loc, 0] = color_sample[i]
                     canvas_updated[i, loc, 1] = shape_sample[i]
                     canvas_updated[i, loc, 2] = loc // 5
                     canvas_updated[i, loc, 3] = loc % 5
+                elif act[i] == 1 and step_loc_reward[i] > 0:
+                    loc = loc_predict[i]
+                    canvas_updated[i, loc].fill_(-2)
             # canvas_updated = current_canvas.long()
         success = (((canvas_updated == final_canvas).sum(dim=2) == 4).sum(dim=1) == 25).float()
         self.success_reward = (success - 0.5) * 2

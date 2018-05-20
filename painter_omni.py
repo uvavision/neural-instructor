@@ -111,6 +111,17 @@ def adjust_lr(optimizer, epoch, initial_lr, decay_rate=0.8):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
+def calibrate_reward(intermediate_reward, final_reward):
+    updated_reward = intermediate_reward.clone()
+    for i in range(updated_reward.size(0)):
+        if final_reward[i] > 0:
+            assert intermediate_reward[i] >= 0
+            # if not intermediate_reward[i] > 0:
+            #     print("failed reward:{}".format(intermediate_reward[i]))
+        if final_reward[i] < 0 and intermediate_reward[i] > 0:
+            updated_reward[i] = 0
+    return updated_reward
+
 def train(epoch):
     # adjust_lr(optimizer, epoch, args.lr)
     model.train()
@@ -131,6 +142,9 @@ def train(epoch):
                     losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
             sum(losses).backward()
         else:
+            # model.loc_rewards = [calibrate_reward(r, model.success_reward) for r in model.loc_rewards]
+            # model.color_rewards = [calibrate_reward(r, model.success_reward) for r in model.color_rewards]
+            # model.shape_rewards = [calibrate_reward(r, model.success_reward) for r in model.shape_rewards]
             for log_prob, reward in zip(model.color_log_probs, model.color_rewards):
                 losses.append((-log_prob * Variable(reward.cuda())).sum())
             for log_prob, reward in zip(model.shape_log_probs, model.shape_rewards):
@@ -152,7 +166,7 @@ def train(epoch):
                 reward_report += fmt_template.format(i, model.color_rewards[i].mean(),
                                                      model.shape_rewards[i].mean(),
                                                      model.loc_rewards[i].mean(),
-                                                     model.target_accuracies[i])
+                                                     model.target_rewards[i].mean())
             for i in range(len(model.att_rewards)):
                 if model.att_rewards[i] is not None:
                     reward_report += "att:{:6.3f}|".format(model.att_rewards[i].mean())
@@ -177,6 +191,8 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
+    # torch.save(model.state_dict(), 'slice_daa/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'bootstrap_b1/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), '/data/xy4cm/Projects/painter_models/bootstrap_newcanvas/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'bootstrap_log_target_error/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'bootstrap_success_reward/model_{}.pth'.format(epoch))

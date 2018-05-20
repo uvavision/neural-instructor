@@ -8,6 +8,7 @@ from layout import (Object, Canvas, tmpl2txt_act)
 import requests
 from tqdm import tqdm
 from data_utils import *
+from pprint import pprint
 
 
 class Policy(object):
@@ -221,11 +222,18 @@ def is_level3_ref(instruction):
     return count == 3
 
 
+def grid_maker(objs, h=GRID_SIZE, w=GRID_SIZE):
+    grid = [["[  ]" for i in range(w)] for i in range(h)]
+    for obj in objs:
+        grid[obj['row']][obj['col']] = obj['color'][0] + '|' + obj['shape'][0]
+    return grid
+
+
 def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
     data = []
     count = 0
-    for i in range(n_dial):
-    # for i in tqdm(range(n_dial)):
+    # for i in range(n_dial):
+    for i in tqdm(range(n_dial)):
         d_dial = {'dial_id': i + 1, 'dialog_data': []}
         n_obj = random.randint(3, 6)
         lst_act = get_act_sequence(n_obj)
@@ -288,7 +296,8 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
             if turn + 1 >= 5:
                 if ref_types[-3:] == ['abs', 'rel', 'rel']:
                     acts = [d['activities'][0]['act'] for d in d_dial['dialog_data'][-3:]]
-                    if 'delete' in acts:
+                    # if Counter(acts)['delete'] == 1:
+                    if acts == ['delete', 'add', 'add']:
                         valid = True
                         break
             if turn + 1 == max_turns:
@@ -301,12 +310,27 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
         # if INST_REL_REL_ABS not in detailed_ref_types and len(d_dial['dialog_data']) == max_turns:
         #     data.append(d_dial)
         if valid:
+            targets = []
             d_dial['dialog_data'] = d_dial['dialog_data'][-3:]
             msgs = [d['activities'][0]['message'] for d in d_dial['dialog_data']]
-            for msg in msgs:
-                print(msg)
-            print("===================")
-            data.append(d_dial)
+            for d_ix in range(len(d_dial['dialog_data'])):
+                ddata = d_dial['dialog_data'][d_ix]
+                if ddata['activities'][0]['act'] == 'delete' and \
+                        detailed_ref_types[-3:][d_ix] == INST_REL_ABS:
+                    msg = ddata['activities'][0]['message']
+                    if 'object' not in msg.split():
+                        valid = False
+                target = ddata['activities'][0]['obj']
+                targets.append('{}-{}-{}-{}'.format(target['color'], target['shape'], target['row'], target['col']))
+                prev_canvas = grid_maker(ddata['prev_canvas'])
+                # pprint(prev_canvas)
+                # print(ddata['activities'][0]['message'])
+            # pprint(grid_maker(d_dial['dialog_data'][-1]['current_canvas']))
+            if len(set(targets)) != len(targets):
+                valid = False
+            # print("===================")
+            if valid:
+                data.append(d_dial)
         # if INST_REL_REL_ABS not in detailed_ref_types:
         #     data.append(d_dial)
         #     if len(data) == 1000:
@@ -326,8 +350,8 @@ def generate_data(n_dial, is_viable=True, mode_ref=MODE_MIN, out_json=None):
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
-        generate_data(10000, out_json=sys.argv[1])
-        #generate_data(10000000, out_json=sys.argv[1])
+        generate_data(5000000, out_json=sys.argv[1])
+        # generate_data(10000000, out_json=sys.argv[1])
     else:
         generate_data(100000)
 

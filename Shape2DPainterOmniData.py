@@ -68,12 +68,15 @@ class Shape2DPainterData(torch.utils.data.Dataset):
             activity = turn['activities'][0]
             inst_type = inst_ref_type(activity['message'])
             inst_data = self.encode_inst(activity['message'])
+            prev_canvas_data = self.encode_canvas(turn['prev_canvas'])
             current_canvas_data = self.encode_canvas(turn['current_canvas'])
             target_obj_data = self.encode_obj(activity['obj']).astype(np.int64)
+            act = {'add': 0, 'delete': 1}[activity['act']]
             ref_obj_data = None
             if activity['features']['obj_ref']:
                 ref_obj_data = self.encode_obj(activity['features']['obj_ref']).astype(np.int64)
             output.append({'turn': turn_ix, 'inst': inst_data, 'canvas': current_canvas_data,
+                           'prev_canvas': prev_canvas_data, 'act': act,
                            'target': target_obj_data, 'ref_obj': ref_obj_data, 'inst_type': inst_type})
         return output
 
@@ -139,6 +142,8 @@ def shape2d_painter_data_collate(dialogs):
     for batch_turn in batch_turns:
         inst_data = torch.from_numpy(np.stack([turn['inst'] for turn in batch_turn]))
         canvas_data = torch.from_numpy(np.stack([turn['canvas'] for turn in batch_turn]))
+        prev_canvas_data = torch.from_numpy(np.stack([turn['prev_canvas'] for turn in batch_turn]))
+        act_data = torch.from_numpy(np.stack([turn['act'] for turn in batch_turn]))
         target_data = torch.from_numpy(np.stack([turn['target'] for turn in batch_turn]))
         ref_obj_data = None
         try:
@@ -146,17 +151,22 @@ def shape2d_painter_data_collate(dialogs):
         except:
             pass
         turn_data = torch.from_numpy(np.stack([turn['turn'] for turn in batch_turn]))
-        assert (turn_data - turn_data[0]).abs().sum() == 0
+        # assert (turn_data - turn_data[0]).abs().sum() == 0
         inst_type_data = torch.from_numpy(np.stack([turn['inst_type'] for turn in batch_turn]))
-        output.append([inst_data, canvas_data, target_data, ref_obj_data, turn_data, inst_type_data])
+        output.append([inst_data, canvas_data, target_data, ref_obj_data,
+                       turn_data, inst_type_data, prev_canvas_data, act_data])
     return output
 
 def get_shape2d_painter_data_loader(split, batch_size):
     assert split in ['train', 'val', 'sample']
-    datafile = {'train': 'train_abs_abs_rel2_rel.json',
+    datafile = {'train': 'slice_daa_train_large.json',
                 # 'val': 'val_abs_abs_rel2_rel.json',
-                'val': 'val_random_10turn.json',
+                'val': 'slice_daa_val.json',
                 'sample': 'painter_omni_sample_2turns.json'}[split]
+    # datafile = {'train': 'train_abs_abs_rel2_rel.json',
+    #             # 'val': 'val_abs_abs_rel2_rel.json',
+    #             'val': 'val_random_10turn.json',
+    #             'sample': 'painter_omni_sample_2turns.json'}[split]
     # datafile = {'train': 'trian_abs_abs2_rel_enriched.json',
     #             'val': 'val_abs_abs2_rel.json',
     #             'sample': 'painter_omni_sample_2turns.json'}[split]
