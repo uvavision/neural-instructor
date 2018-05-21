@@ -131,11 +131,14 @@ def train(epoch):
         losses = []
         use_success_reward = False
         if use_success_reward:
+            assert False
             for log_prob, reward in zip(model.color_log_probs, model.color_rewards):
                 losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
             for log_prob, reward in zip(model.shape_log_probs, model.shape_rewards):
                 losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
             for log_prob, reward in zip(model.loc_log_probs, model.loc_rewards):
+                losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
+            for log_prob, reward in zip(model.act_log_probs, model.loc_rewards):
                 losses.append((-log_prob * Variable(model.success_reward.cuda())).sum())
             for log_prob, reward in zip(model.att_log_probs, model.loc_rewards):
                 if log_prob is not None:
@@ -151,6 +154,8 @@ def train(epoch):
                 losses.append((-log_prob * Variable(reward.cuda())).sum())
             for log_prob, reward in zip(model.loc_log_probs, model.loc_rewards):
                 losses.append((-log_prob * Variable(reward.cuda())).sum())
+            for log_prob, reward in zip(model.act_log_probs, model.loc_rewards):
+                losses.append((-log_prob * Variable(reward.cuda())).sum())
             for log_prob, reward in zip(model.att_log_probs, model.loc_rewards):
                 if log_prob is not None:
                     losses.append((-log_prob * Variable(reward.cuda())).sum())
@@ -160,13 +165,19 @@ def train(epoch):
         optimizer.step()
         if batch_idx % args.log_interval == 0:
             total_steps = len(model.loc_rewards)
-            fmt_template = "c{0}:{1:>6.3f}, s{0}:{2:>6.3f}, l{0}:{3:>6.3f}, t{0}:{4:>6.3f}| "
+            if model.pred_act:
+                fmt_template = "c{0}:{1:>6.3f}, s{0}:{2:>6.3f}, a{0}:{5:>6.3f}, l{0}:{3:>6.3f}, t{0}:{4:>6.3f}| "
+            else:
+                fmt_template = "c{0}:{1:>6.3f}, s{0}:{2:>6.3f}, l{0}:{3:>6.3f}, t{0}:{4:>6.3f}| "
             reward_report = ''
             for i in range(total_steps):
-                reward_report += fmt_template.format(i, model.color_rewards[i].mean(),
-                                                     model.shape_rewards[i].mean(),
-                                                     model.loc_rewards[i].mean(),
-                                                     model.target_rewards[i].mean())
+                items = [i, model.color_rewards[i].mean(),
+                         model.shape_rewards[i].mean(),
+                         model.loc_rewards[i].mean(),
+                         model.target_rewards[i].mean()]
+                if model.pred_act:
+                    items.append(model.act_rewards[i].mean())
+                reward_report += fmt_template.format(*items)
             for i in range(len(model.att_rewards)):
                 if model.att_rewards[i] is not None:
                     reward_report += "att:{:6.3f}|".format(model.att_rewards[i].mean())
@@ -191,7 +202,8 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    # torch.save(model.state_dict(), 'slice_daa/model_{}.pth'.format(epoch))
+    torch.save(model.state_dict(), '3step_pred_act/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'slice_daa_mixed_act/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'bootstrap_b1/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), '/data/xy4cm/Projects/painter_models/bootstrap_newcanvas/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'bootstrap_log_target_error/model_{}.pth'.format(epoch))

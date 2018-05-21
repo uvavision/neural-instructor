@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.distributions import Categorical
 from data_utils import *
+from pprint import pprint
+from const import COLORS, SHAPES
 
 
 class InstEncoder(nn.Module):
@@ -22,11 +24,21 @@ class InstEncoder(nn.Module):
         batch_size = inst.size(0)
         h = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
         c = Variable(torch.zeros(batch_size, self.rnn_size).cuda())
+        hiddens = []
         for i in range(inst.size(1)):
+            if i > 1 and inst[:, i].sum().data[0] == 0:
+                break
             input = self.embed(inst[:, i])
             h, c = self.lstm_cell(input, (h, c))
+            hiddens.append(h)
         # only want the last hidden state
-        return h
+        hiddens = torch.stack(hiddens, dim=1) # B x seq x rnn_size
+        output = []
+        for i in range(inst.size(0)):
+            ix = torch.nonzero(inst[0].data).squeeze()[-1]
+            output.append(hiddens[i, ix])
+        output = torch.stack(output, dim=0)
+        return output
 
 
 class CanvasEncoder(nn.Module):
@@ -52,6 +64,15 @@ def sample_probs(probs):
     log_prob = dist.log_prob(sample)
     return sample.data, log_prob
 
+def canvas2grid(canvas, h=5, w=5):
+    grid = [["[ ]" for i in range(w)] for i in range(h)]
+    for row in range(5):
+        for col in range(5):
+            if canvas[row * 5 + col].sum() >= 0:
+                grid[row][col] = COLORS[canvas[row * 5 + col][0]][0] + '|' + SHAPES[canvas[row * 5 + col][1]][0]
+    return grid
+
+
 class Shape2DPainterNet(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
@@ -63,6 +84,9 @@ class Shape2DPainterNet(nn.Module):
         # self.canvas_encoder = CanvasEncoder()
         self.hidden_size = 64
         rnn_size = self.inst_encoder_abs.rnn_size
+        self.pred_act = True
+        if self.pred_act:
+            self.fc_act = nn.Linear(rnn_size, 2)
         self.fc_color = nn.Linear(rnn_size, 3)
         self.fc_shape = nn.Linear(rnn_size, 3)
         self.fc_abs_loc = nn.Linear(rnn_size, 25)
@@ -152,19 +176,28 @@ class Shape2DPainterNet(nn.Module):
         self.att_log_probs = []
         self.att_rewards = []
         self.target_rewards = []
+        self.act_log_probs = []
+        self.act_rewards = []
         total_steps = len(dialog)
-        final_canvas = dialog[total_steps-1][1].long()
+        # total_steps = 1
+        final_canvas = dialog[-1][1].long()
         init_canvas = dialog[0][6].long()
         canvas_updated = init_canvas.clone()
         running_reward = torch.LongTensor(final_canvas.size(0)).fill_(1)
         for dialog_ix in range(total_steps):
             # get data
-            inst, current_canvas, target, ref, _, inst_type, prev_canvas, act = dialog[dialog_ix]
+            inst, current_canvas, target, ref, _, inst_type, prev_canvas, gt_act = dialog[dialog_ix]
             # if dialog_ix > 0:
             #     prev_canvas = Variable(dialog[dialog_ix - 1][1].cuda())
             inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
             # inst_type in a batch much be the same
             assert ((inst_type - inst_type[0]) == 0).all()
+            #
+            # for print_ix in range(10):
+            #     print(inst_str[print_ix])
+            #     pprint(canvas2grid(final_canvas[print_ix]))
+            #     print(target[print_ix])
+            #     print("=================================")
 
             if self.is_abs_inst(inst_type, dialog_ix):
                 inst_embedding = self.inst_encoder_abs(Variable(inst.cuda()))  # Bx64
@@ -187,6 +220,16 @@ class Shape2DPainterNet(nn.Module):
             shape_sample, shape_log_prob = sample_probs(shape_probs)
             self.shape_log_probs.append(shape_log_prob)
 
+            if self.pred_act:
+                # sample act
+                act_probs = F.softmax(self.fc_act(inst_embedding), dim=1)
+                act_sample, act_log_prob = sample_probs(act_probs)
+                self.act_log_probs.append(act_log_prob)
+                step_act_reward = ((act_sample.cpu() == gt_act).float() - 0.5) * 2
+                self.act_rewards.append(step_act_reward)
+            else:
+                act_sample = gt_act.cuda()
+
             # sample location
             step_att_reward = None
             if self.is_abs_inst(inst_type, dialog_ix):
@@ -207,7 +250,7 @@ class Shape2DPainterNet(nn.Module):
                 if loc_predict[i] < 0 or loc_predict[i] >= 25:
                     step_loc_reward[i] = -1
                     continue
-                if act[i] == 0:
+                if act_sample[i] == 0:
                     # when the act is add, it must predict an object in the final canvas
                     predict_target = final_canvas[i, loc_predict[i]]
                 else:
@@ -221,7 +264,7 @@ class Shape2DPainterNet(nn.Module):
                 else:
                     step_loc_reward[i] = 1
                     # only consider color and shape prediction when the act is add
-                    if act[i] == 0:
+                    if act_sample[i] == 0:
                         step_color_reward[i] = 1 if color_sample[i] == predict_target[0] else -1
                         step_shape_reward[i] = 1 if shape_sample[i] == predict_target[1] else -1
             self.target_rewards.append(target_reward)
@@ -268,13 +311,13 @@ class Shape2DPainterNet(nn.Module):
             self.color_rewards.append(step_color_reward)
             self.shape_rewards.append(step_shape_reward)
             for i in range(step_loc_reward.size(0)):
-                if act[i] == 0 and step_loc_reward[i] > 0 and step_color_reward[i] > 0 and step_shape_reward[i] > 0:
+                if act_sample[i] == 0 and step_loc_reward[i] > 0 and step_color_reward[i] > 0 and step_shape_reward[i] > 0:
                     loc = loc_predict[i]
                     canvas_updated[i, loc, 0] = color_sample[i]
                     canvas_updated[i, loc, 1] = shape_sample[i]
                     canvas_updated[i, loc, 2] = loc // 5
                     canvas_updated[i, loc, 3] = loc % 5
-                elif act[i] == 1 and step_loc_reward[i] > 0:
+                elif act_sample[i] == 1 and step_loc_reward[i] > 0:
                     loc = loc_predict[i]
                     canvas_updated[i, loc].fill_(-2)
             # canvas_updated = current_canvas.long()

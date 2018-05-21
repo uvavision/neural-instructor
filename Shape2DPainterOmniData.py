@@ -67,14 +67,17 @@ class Shape2DPainterData(torch.utils.data.Dataset):
             turn_ix = turn['turn']
             activity = turn['activities'][0]
             inst_type = inst_ref_type(activity['message'])
+            assert inst_type != INST_REL_REL_ABS
+            if inst_type == INST_REL_ABS:
+                inst_type = INST_REL
             inst_data = self.encode_inst(activity['message'])
             prev_canvas_data = self.encode_canvas(turn['prev_canvas'])
             current_canvas_data = self.encode_canvas(turn['current_canvas'])
             target_obj_data = self.encode_obj(activity['obj']).astype(np.int64)
             act = {'add': 0, 'delete': 1}[activity['act']]
             ref_obj_data = None
-            if activity['features']['obj_ref']:
-                ref_obj_data = self.encode_obj(activity['features']['obj_ref']).astype(np.int64)
+            if activity['features']['obj_rel']:
+                ref_obj_data = self.encode_obj(activity['features']['obj_rel']).astype(np.int64)
             output.append({'turn': turn_ix, 'inst': inst_data, 'canvas': current_canvas_data,
                            'prev_canvas': prev_canvas_data, 'act': act,
                            'target': target_obj_data, 'ref_obj': ref_obj_data, 'inst_type': inst_type})
@@ -159,10 +162,13 @@ def shape2d_painter_data_collate(dialogs):
 
 def get_shape2d_painter_data_loader(split, batch_size):
     assert split in ['train', 'val', 'sample']
-    datafile = {'train': 'slice_daa_train_large.json',
-                # 'val': 'val_abs_abs_rel2_rel.json',
-                'val': 'slice_daa_val.json',
+    datafile = {'train': '../neural-instructor-data/train_slice_abs_rel_rel.json',
+                'val': '../neural-instructor-data/val_slice_abs_rel_rel.json',
                 'sample': 'painter_omni_sample_2turns.json'}[split]
+    # datafile = {'train': 'slice_daa_train_large.json',
+    #             # 'val': 'val_abs_abs_rel2_rel.json',
+    #             'val': 'slice_daa_val.json',
+    #             'sample': 'painter_omni_sample_2turns.json'}[split]
     # datafile = {'train': 'train_abs_abs_rel2_rel.json',
     #             # 'val': 'val_abs_abs_rel2_rel.json',
     #             'val': 'val_random_10turn.json',
