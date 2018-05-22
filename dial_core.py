@@ -56,9 +56,9 @@ class Agent(object):
     def activity2dict(self):
         d = {ACT: self.act,
              OBJ: self.obj.to_dict() if self.obj else None,
-             LOC_ABS: self.loc_abs,
-             LOC_REL: self.loc_rel,
-             OBJ_REF: self.obj_ref.to_dict() if self.obj_ref else None,
+             # LOC_ABS: self.loc_abs,
+             # LOC_REL: self.loc_rel,
+             # OBJ_REF: self.obj_ref.to_dict() if self.obj_ref else None,
              FEATURES: self.obj.features,
              MESSAGE: self.message
         }
@@ -107,7 +107,7 @@ class Agent(object):
             options.append(LOC_ABS)
         if row_r is not None:
             options.append(LOC_REL)
-        if options == []:
+        if not options:
             for id_, obj in self.canvas.d_id_obj.items():
                 d_features = self.canvas.get_obj_features(obj)
                 if MODE_CS in d_features:
@@ -146,7 +146,12 @@ class Agent(object):
             self.get_delete_activity(select_empty=not(False ^ is_viable))
             if self.obj is None:
                 return []
-            mode_ref = random.choice(MODES_REF)
+            print(self.obj)
+            if not self.mode_ref:
+                mode_ref = random.choice(MODES_REF)
+            else:
+                mode_ref = self.mode_ref
+            print(self.obj)
             self.message = generate_act_message_by_tmpl(self.canvas, self.obj, self.act, mode_ref)
             self.canvas.delete(self.obj)
             activities.append(self.activity2dict())
@@ -166,6 +171,8 @@ class Agent(object):
             self.canvas.delete(obj_from)
             self.canvas.add(obj_to)
         self.canvas.update_ref_obj_features()
+        # for k, v in self.canvas.d_id_feature.items():
+        #     print(k, v.keys())
         return activities
 
 
@@ -384,6 +391,26 @@ def gen_dialog_flow():
             print()
             break
     grid = grid_maker(agent.canvas.d_id_obj)
+    pprint(grid)
+
+
+def debug():
+    agent = Agent(mode_loc=None, mode_ref=None)
+    activities = agent.get_activities(ADD)
+    grid = grid_maker(agent.canvas.d_id_obj)
+    print("#", agent.act, '#', agent.message)
+    pprint(grid)
+    agent.reset_activity()
+    agent.mode_loc = LOC_REL
+    activities = agent.get_activities(ADD)
+    grid = grid_maker(agent.canvas.d_id_obj)
+    print("#", agent.act, '#', agent.message)
+    pprint(grid)
+    agent.mode_ref = LOC_REL
+    agent.mode_loc = LOC_REL
+    activities = agent.get_activities(DELETE)
+    grid = grid_maker(agent.canvas.d_id_obj)
+    print("#", agent.act, '#', agent.message)
     pprint(grid)
 
 

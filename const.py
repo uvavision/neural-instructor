@@ -23,8 +23,8 @@ MODE_FULL = 'full'
 # MODE_MIN = 'min'
 MODE_CS = 'color_shape'
 MODE_LOC = 'locaton'
-MODE_LOC_ABS = 'locaton_abs'
-MODE_LOC_REL = 'locaton_rel'
+MODE_LOC_ABS = 'loc_abs'
+MODE_LOC_REL = 'loc_rel'
 MODES_REF = [MODE_CS, MODE_LOC_ABS, MODE_LOC_REL, MODE_FULL]
 
 LOC_ABS = 'loc_abs'  # 'location_absolute'
@@ -93,13 +93,13 @@ DICT_LOC_DELTA2NAME = {
 
 TMPL_ADD = ["Add one $obj.", "Now place a $obj."]
 
-TMPL_DEL = ["Please remove the $obj from the canvas.", "Delete the $obj.", "Now get rid of the $obj."]
+TMPL_DEL = ["Please remove the $obj.", "Delete the $obj.", "Now get rid of the $obj."]
 
 TMPL_MV = ["move the $obj to $loc_abs $loc_rel", "place the $obj to $loc_abs $loc_rel"]
 
-TMPL_LOC_ABS = ["to/at $loc_abs of the canvas"]
+TMPL_LOC_ABS = ["at $loc_abs of the canvas"]
 
-TMPL_LOC_REL = ["to/at $loc_rel of the $obj_ref"]
+TMPL_LOC_REL = ["at $loc_rel of the $obj_ref"]
 
 TMPL_OBJ_REF = ["$color $shape at $loc_rel of the $loc_abs location of the canvas"]
 
