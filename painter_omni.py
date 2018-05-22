@@ -94,6 +94,8 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('bootstrap_success_reward////model_29.pth'))
 # model.load_state_dict(torch.load('bootstrap_log_target_error////model_182.pth'))
 # model.load_state_dict(torch.load('/data/xy4cm/Projects/painter_models/bootstrap_newcanvas_continue/model_6.pth'))
+# model.load_state_dict(torch.load('3step_gt_act//model_200.pth'))
+# model.load_state_dict(torch.load('3step_pred_act//model_200.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
@@ -127,7 +129,7 @@ def train(epoch):
     model.train()
     for batch_idx, dialog in enumerate(train_loader):
         optimizer.zero_grad()
-        success = model(dialog, train_loader.dataset.ix_to_word)
+        success = model(dialog, train_loader.dataset.ix_to_word, eval=False)
         losses = []
         use_success_reward = False
         if use_success_reward:
@@ -189,12 +191,14 @@ def train(epoch):
 def model_test():
     model.eval()
     results = []
-    for batch_idx, dialog in enumerate(test_loader):
-        success = model(dialog, test_loader.dataset.ix_to_word)
+    # loader = train_loader
+    loader = test_loader
+    for batch_idx, dialog in enumerate(loader):
+        success = model(dialog, loader.dataset.ix_to_word, eval=True)
         results.append(success)
         reward_report = " success: {:.3f}".format(success)
-        print('[{:>6}/{} ({:>2.0f}%)]{} {:.3f}'.format(batch_idx, len(test_loader.dataset),
-                                                100. * batch_idx / len(test_loader),
+        print('[{:>6}/{} ({:>2.0f}%)]{} {:.3f}'.format(batch_idx, len(loader.dataset),
+                                                100. * batch_idx / len(loader),
                                                        reward_report, sum(results)/(batch_idx+1)))
 
 
@@ -202,7 +206,8 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
-    torch.save(model.state_dict(), '3step_pred_act/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), '3step_gt_act/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), '3step_pred_act/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'slice_daa_mixed_act/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'bootstrap_b1/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), '/data/xy4cm/Projects/painter_models/bootstrap_newcanvas/model_{}.pth'.format(epoch))

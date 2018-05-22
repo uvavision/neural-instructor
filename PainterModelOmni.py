@@ -84,9 +84,10 @@ class Shape2DPainterNet(nn.Module):
         # self.canvas_encoder = CanvasEncoder()
         self.hidden_size = 64
         rnn_size = self.inst_encoder_abs.rnn_size
-        self.pred_act = True
+        self.pred_act = False
         if self.pred_act:
             self.fc_act = nn.Linear(rnn_size, 2)
+        # self.fc_ref_type = nn.Linear(rnn_size, 2)
         self.fc_color = nn.Linear(rnn_size, 3)
         self.fc_shape = nn.Linear(rnn_size, 3)
         self.fc_abs_loc = nn.Linear(rnn_size, 25)
@@ -166,7 +167,7 @@ class Shape2DPainterNet(nn.Module):
             return True
         return False
 
-    def forward(self, dialog, ix_to_word):
+    def forward(self, dialog, ix_to_word, eval):
         self.color_rewards = []
         self.shape_rewards = []
         self.loc_rewards = []
@@ -311,15 +312,23 @@ class Shape2DPainterNet(nn.Module):
             self.color_rewards.append(step_color_reward)
             self.shape_rewards.append(step_shape_reward)
             for i in range(step_loc_reward.size(0)):
-                if act_sample[i] == 0 and step_loc_reward[i] > 0 and step_color_reward[i] > 0 and step_shape_reward[i] > 0:
+                if eval:
                     loc = loc_predict[i]
-                    canvas_updated[i, loc, 0] = color_sample[i]
-                    canvas_updated[i, loc, 1] = shape_sample[i]
-                    canvas_updated[i, loc, 2] = loc // 5
-                    canvas_updated[i, loc, 3] = loc % 5
-                elif act_sample[i] == 1 and step_loc_reward[i] > 0:
-                    loc = loc_predict[i]
-                    canvas_updated[i, loc].fill_(-2)
+                    if 0 <= loc < 25:
+                        if act_sample[i] == 0:
+                            canvas_updated[i, loc] = torch.LongTensor([color_sample[i], shape_sample[i], loc // 5, loc % 5])
+                        elif act_sample[i] == 1:
+                            canvas_updated[i, loc].fill_(-2)
+                else:
+                    if act_sample[i] == 0 and step_loc_reward[i] > 0 and step_color_reward[i] > 0 and step_shape_reward[i] > 0:
+                        loc = loc_predict[i]
+                        canvas_updated[i, loc, 0] = color_sample[i]
+                        canvas_updated[i, loc, 1] = shape_sample[i]
+                        canvas_updated[i, loc, 2] = loc // 5
+                        canvas_updated[i, loc, 3] = loc % 5
+                    elif act_sample[i] == 1 and step_loc_reward[i] > 0:
+                        loc = loc_predict[i]
+                        canvas_updated[i, loc].fill_(-2)
             # canvas_updated = current_canvas.long()
         success = (((canvas_updated == final_canvas).sum(dim=2) == 4).sum(dim=1) == 25).float()
         self.success_reward = (success - 0.5) * 2
