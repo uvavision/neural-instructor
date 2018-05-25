@@ -73,21 +73,40 @@ def canvas2grid(canvas, h=5, w=5):
     return grid
 
 
+def index_join(a, b, index1, index2):
+    c = a.new(a.size(0) + b.size(0))
+    for i in range(index1.size(0)):
+        c[index1[i]] = a[i]
+    for i in range(index2.size(0)):
+        c[index2[i]] = b[i]
+    return c
+
+def index_join_var(a, b, index1, index2):
+    c = Variable(a.data.new(a.size(0) + b.size(0)))
+    for i in range(index1.size(0)):
+        c[index1[i]] = a[i]
+    for i in range(index2.size(0)):
+        c[index2[i]] = b[i]
+    return c
+
 class Shape2DPainterNet(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
-        self.inst_encoder_abs = InstEncoder(vocab_size)
-        # self.inst_encoder_rel_abs = InstEncoder(vocab_size)
-        self.inst_encoder_rel = InstEncoder(vocab_size)
+        # self.inst_encoder_abs = InstEncoder(vocab_size)
+        # # self.inst_encoder_rel_abs = InstEncoder(vocab_size)
+        # self.inst_encoder_rel = InstEncoder(vocab_size)
+        self.inst_encoder = InstEncoder(vocab_size)
         # self.rel_inst_encoder = InstEncoder(vocab_size)
         self.use_mask = True
         # self.canvas_encoder = CanvasEncoder()
         self.hidden_size = 64
-        rnn_size = self.inst_encoder_abs.rnn_size
-        self.pred_act = False
+        rnn_size = self.inst_encoder.rnn_size
+        self.pred_act = True
         if self.pred_act:
             self.fc_act = nn.Linear(rnn_size, 2)
-        # self.fc_ref_type = nn.Linear(rnn_size, 2)
+        self.pred_ref_type = False
+        if self.pred_ref_type:
+            self.fc_ref_type = nn.Linear(rnn_size, 2)
         self.fc_color = nn.Linear(rnn_size, 3)
         self.fc_shape = nn.Linear(rnn_size, 3)
         self.fc_abs_loc = nn.Linear(rnn_size, 25)
@@ -179,6 +198,11 @@ class Shape2DPainterNet(nn.Module):
         self.target_rewards = []
         self.act_log_probs = []
         self.act_rewards = []
+        # self.ref_type_samples = []
+        self.rel_ref_indices = []
+        if self.pred_ref_type:
+            self.ref_type_log_probs = []
+            self.ref_type_rewards = []
         total_steps = len(dialog)
         # total_steps = 1
         final_canvas = dialog[-1][1].long()
@@ -192,7 +216,7 @@ class Shape2DPainterNet(nn.Module):
             #     prev_canvas = Variable(dialog[dialog_ix - 1][1].cuda())
             inst_str = [' '.join(map(ix_to_word.get, list(inst[ix]))) for ix in range(inst.size(0))]
             # inst_type in a batch much be the same
-            assert ((inst_type - inst_type[0]) == 0).all()
+            # assert ((inst_type - inst_type[0]) == 0).all()
             #
             # for print_ix in range(10):
             #     print(inst_str[print_ix])
@@ -200,16 +224,27 @@ class Shape2DPainterNet(nn.Module):
             #     print(target[print_ix])
             #     print("=================================")
 
-            if self.is_abs_inst(inst_type, dialog_ix):
-                inst_embedding = self.inst_encoder_abs(Variable(inst.cuda()))  # Bx64
-            else:
-                inst_embedding = self.inst_encoder_rel(Variable(inst.cuda()))  # Bx64
+            inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
+
+            # if self.is_abs_inst(inst_type, dialog_ix):
+            #     inst_embedding = self.inst_encoder_abs(Variable(inst.cuda()))  # Bx64
+            # else:
+            #     inst_embedding = self.inst_encoder_rel(Variable(inst.cuda()))  # Bx64
 
             # # encode instruction
             # if ref is None:
             #     inst_embedding = self.inst_encoder(Variable(inst.cuda()))  # Bx64
             # else:
             #     inst_embedding = self.rel_inst_encoder(Variable(inst.cuda()))  # Bx64
+            if self.pred_ref_type:
+                ref_type_probs = F.softmax(self.fc_ref_type(inst_embedding), dim=1)
+                ref_type_sample, ref_type_log_prob = sample_probs(ref_type_probs)
+                self.ref_type_log_probs.append(ref_type_log_prob)
+                step_ref_type_reward = ((ref_type_sample.cpu() == (inst_type-1)).float() - 0.5) * 2
+                self.ref_type_rewards.append(step_ref_type_reward)
+            else:
+                ref_type_sample = (inst_type - 1).cuda()
+
 
             # sample color
             color_probs = F.softmax(self.fc_color(inst_embedding), dim=1)
@@ -231,15 +266,45 @@ class Shape2DPainterNet(nn.Module):
             else:
                 act_sample = gt_act.cuda()
 
+            abs_ref_index = None
+            if (1 - ref_type_sample).sum() > 0:
+                abs_ref_index = torch.nonzero(1 - ref_type_sample).squeeze()
+            rel_ref_index = None
+            if ref_type_sample.sum() > 0:
+                rel_ref_index = torch.nonzero(ref_type_sample).squeeze()
+            self.rel_ref_indices.append(rel_ref_index)
+            if abs_ref_index is not None:
+                abs_inst_embedding = torch.index_select(inst_embedding, 0, Variable(abs_ref_index))
+                abs_loc_predict, abs_loc_log_prob = self.loc_abs_predict(abs_inst_embedding)
+            if rel_ref_index is not None:
+                rel_inst_embedding = torch.index_select(inst_embedding, 0, Variable(rel_ref_index))
+                rel_canvas_updated = torch.index_select(canvas_updated, 0, rel_ref_index.cpu())
+                rel_loc_predict, rel_loc_log_prob, rel_att_log_prob, rel_step_att_reward = \
+                    self.loc_relative_predict(rel_inst_embedding, Variable(rel_canvas_updated.float().cuda()), ref_obj=None)
+            if abs_ref_index is not None and rel_ref_index is not None:
+                loc_predict = index_join(abs_loc_predict, rel_loc_predict, abs_ref_index, rel_ref_index)
+                loc_log_prob = index_join_var(abs_loc_log_prob, rel_loc_log_prob, abs_ref_index, rel_ref_index)
+            elif abs_ref_index is not None:
+                loc_predict = abs_loc_predict
+                loc_log_prob = abs_loc_log_prob
+            elif rel_ref_index is not None:
+                loc_predict = rel_loc_predict
+                loc_log_prob = rel_loc_log_prob
+            else:
+                assert False
+            if rel_ref_index is not None:
+                self.att_log_probs.append(rel_att_log_prob)
+            else:
+                self.att_log_probs.append(None)
             # sample location
             step_att_reward = None
-            if self.is_abs_inst(inst_type, dialog_ix):
-                loc_predict, loc_log_prob = self.loc_abs_predict(inst_embedding)
-                self.att_log_probs.append(None)
-            else:
-                loc_predict, loc_log_prob, att_log_prob, step_att_reward = \
-                    self.loc_relative_predict(inst_embedding, Variable(canvas_updated.float().cuda()), ref_obj=ref)
-                self.att_log_probs.append(att_log_prob)
+            # if self.is_abs_inst(inst_type, dialog_ix):
+            #     loc_predict, loc_log_prob = self.loc_abs_predict(inst_embedding)
+            #     self.att_log_probs.append(None)
+            # else:
+            #     loc_predict, loc_log_prob, att_log_prob, step_att_reward = \
+            #         self.loc_relative_predict(inst_embedding, Variable(canvas_updated.float().cuda()), ref_obj=ref)
+            #     self.att_log_probs.append(att_log_prob)
             self.loc_log_probs.append(loc_log_prob)
 
             # compute rewards

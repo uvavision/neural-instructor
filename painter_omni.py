@@ -17,7 +17,7 @@ parser.add_argument('--batch-size', type=int, default=32, metavar='N',
                     help='input batch size for training (default: 64)')
 parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                     help='input batch size for testing (default: 1000)')
-parser.add_argument('--epochs', type=int, default=200, metavar='N',
+parser.add_argument('--epochs', type=int, default=500, metavar='N',
                     help='number of epochs to train (default: 10)')
 parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
                     help='learning rate (default: 0.01)')
@@ -96,6 +96,10 @@ model = Shape2DPainterNet(train_loader.dataset.vocab_size)
 # model.load_state_dict(torch.load('/data/xy4cm/Projects/painter_models/bootstrap_newcanvas_continue/model_6.pth'))
 # model.load_state_dict(torch.load('3step_gt_act//model_200.pth'))
 # model.load_state_dict(torch.load('3step_pred_act//model_200.pth'))
+# model.load_state_dict(torch.load('3step_pred_act_new_data/model_72.pth'))
+# model.load_state_dict(torch.load('gt_ref_ez///model_121.pth'))
+# model.load_state_dict(torch.load('pred_ref_ez///model_200.pth'))
+# model.load_state_dict(torch.load('gt_ref_ez_5k//model_500.pth'))
 model.cuda()
 # loss_fn = Shape2DObjCriterion()
 
@@ -158,8 +162,13 @@ def train(epoch):
                 losses.append((-log_prob * Variable(reward.cuda())).sum())
             for log_prob, reward in zip(model.act_log_probs, model.loc_rewards):
                 losses.append((-log_prob * Variable(reward.cuda())).sum())
-            for log_prob, reward in zip(model.att_log_probs, model.loc_rewards):
-                if log_prob is not None:
+            if model.pred_ref_type:
+                for log_prob, reward in zip(model.ref_type_log_probs, model.loc_rewards):
+                    losses.append((-log_prob * Variable(reward.cuda())).sum())
+            for rel_ref_index, log_prob, reward in zip(model.rel_ref_indices, model.att_log_probs, model.loc_rewards):
+                if rel_ref_index is not None:
+                    reward = torch.index_select(reward, 0, rel_ref_index.cpu())
+                    # if log_prob is not None:
                     losses.append((-log_prob * Variable(reward.cuda())).sum())
             sum(losses).backward()
 
@@ -171,6 +180,8 @@ def train(epoch):
                 fmt_template = "c{0}:{1:>6.3f}, s{0}:{2:>6.3f}, a{0}:{5:>6.3f}, l{0}:{3:>6.3f}, t{0}:{4:>6.3f}| "
             else:
                 fmt_template = "c{0}:{1:>6.3f}, s{0}:{2:>6.3f}, l{0}:{3:>6.3f}, t{0}:{4:>6.3f}| "
+            if model.pred_ref_type:
+                fmt_template = "c{0}:{1:>6.3f}, s{0}:{2:>6.3f}, a{0}:{5:>6.3f}, r{0}:{6:>6.3f}, l{0}:{3:>6.3f}, t{0}:{4:>6.3f}| "
             reward_report = ''
             for i in range(total_steps):
                 items = [i, model.color_rewards[i].mean(),
@@ -179,6 +190,8 @@ def train(epoch):
                          model.target_rewards[i].mean()]
                 if model.pred_act:
                     items.append(model.act_rewards[i].mean())
+                if model.pred_ref_type:
+                    items.append(model.ref_type_rewards[i].mean())
                 reward_report += fmt_template.format(*items)
             for i in range(len(model.att_rewards)):
                 if model.att_rewards[i] is not None:
@@ -206,6 +219,15 @@ def model_test():
 
 for epoch in range(1, args.epochs + 1):
     train(epoch)
+#     torch.save(model.state_dict(), 'gt_ref_ez_5k/model_{}.pth'.format(epoch))
+#     torch.save(model.state_dict(), 'abs_rel_rel_gt_ref_valid/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'gt_ref_ez/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'gt_ref/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'ref_type_pred_stats/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), 'ref_type_pred/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), '3step_pred_act_new_data_sinle_inst_encoder/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), '3step_pred_act_new_data_b1/model_{}.pth'.format(epoch))
+    # torch.save(model.state_dict(), '3step_pred_act_new_data/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), '3step_gt_act/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), '3step_pred_act/model_{}.pth'.format(epoch))
     # torch.save(model.state_dict(), 'slice_daa_mixed_act/model_{}.pth'.format(epoch))

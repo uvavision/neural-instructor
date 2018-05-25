@@ -38,6 +38,7 @@ class Shape2DPainterData(torch.utils.data.Dataset):
     def __init__(self, datafile):
         self.raw_dialogs = json.load(open(datafile, 'r'))
         # self.data = [d for d in data if 'canvas' in d['current_instruction']]
+        # self.raw_dialogs = [d for d in self.raw_dialogs if d['dialog_data'][0]['activities'][0]['act'] == 'delete']
         max_seq_length = 0
         vocab = set()
         for dialog in self.raw_dialogs:
@@ -162,9 +163,17 @@ def shape2d_painter_data_collate(dialogs):
 
 def get_shape2d_painter_data_loader(split, batch_size):
     assert split in ['train', 'val', 'sample']
-    datafile = {'train': '../neural-instructor-data/train_slice_abs_rel_rel.json',
-                'val': '../neural-instructor-data/val_slice_abs_rel_rel.json',
-                'sample': 'painter_omni_sample_2turns.json'}[split]
+    datafile = {
+        'train': '../neural-instructor-data/train_mix_ez.json',
+        # 'train': '../neural-instructor-data/train_abs_rel_rel.json',
+        # 'val': '../neural-instructor-data/val_slice_abs_rel_rel.json',
+        'val': '../neural-instructor-data/dialog_val.json',
+        'sample': 'painter_omni_sample_2turns.json'}[split]
+        # 'train': '../neural-instructor-data/train_slice_abs_rel_rel_start_add.json',
+        # 'train': '../neural-instructor-data/train_slice_abs_rel_rel.json',
+        #         # 'val': '../neural-instructor-data/val_slice_abs_rel_rel.json',
+        #         'val': '../neural-instructor-data/dialog_val.json',
+        #         'sample': 'painter_omni_sample_2turns.json'}[split]
     # datafile = {'train': 'slice_daa_train_large.json',
     #             # 'val': 'val_abs_abs_rel2_rel.json',
     #             'val': 'slice_daa_val.json',
