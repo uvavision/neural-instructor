@@ -6,7 +6,20 @@ var Common = (function() {
   // Publicly accessible methods defined
   return {drawCanvasData: drawCanvasData};
 
-    function drawCanvasData(ctx, canvas_data, scale) {
+    function drawX(ctx, x, y) {
+      ctx.lineWidth = 3;
+      var radius = 8;
+      ctx.strokeStyle = "black";
+      ctx.beginPath();
+      ctx.moveTo(x - radius, y - radius);
+      ctx.lineTo(x + radius, y + radius);
+      ctx.stroke();
+      ctx.moveTo(x + radius, y - radius);
+      ctx.lineTo(x - radius, y + radius);
+      ctx.stroke();
+    }
+
+    function drawCanvasData(ctx, canvas_data, scale, remove) {
         // ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
         // ctx.lineWidth = 3;
         canvas_data.forEach(function (box_anno) {
@@ -33,6 +46,10 @@ var Common = (function() {
             } else {
               alert("unknown shape");
             }
+            var centerX = bbox[0] + bbox[2]*0.5;
+            var centerY = bbox[1] + bbox[3]*0.5;
+            if (remove)
+              drawX(ctx, centerX, centerY);
             // ctx.rect(bbox[0] * scale, bbox[1] * scale, (bbox[2]) * scale, (bbox[3]) * scale);
             // ctx.stroke();
             // drawTextBG(ctx, box_anno['label'], '15px arial', bbox[0] * scale, bbox[1] * scale);
