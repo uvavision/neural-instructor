@@ -79,7 +79,7 @@ The painter model take an message and the canvas before the message as input, an
 | Dataset    | Number of Messages | Message Format                                               |
 | ---------- | :----------------- | ------------------------------------------------------------ |
 | Training   | 43K                | Messages have exactly 3 instructions.                        |
-| Validation | 43K                | Messages have variable number of instructions, max number = 12. |
+| Validation | 3K                | Messages have variable number of instructions, max number = 12. |
 
 Use the script `dial_core_sampling.py` to generate data; setting the flag `generate_dialog_slice_data` inside the script to generate training or validation data.
 
