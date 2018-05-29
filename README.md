@@ -51,7 +51,7 @@ The painter model takes a message and the canvas before the message as inputs, a
 
 At each step the painter model takes an instruction and a canvas as input, and predicts a command that is parameterized by three terms: action, object and location. For example, in the instruction `Now place a blue circle at top-left of the canvas` , the action is "add", the object is a "blue circle", and the location is "top-left" (row=0, col=1). However, if the instruction is a Delete instruction, the model only needs to predict the location of the target object. 
 
-We use a LSTM network to encode input instruction $h_t = \text{LSTM}(h_{t-1}, x_t; W_1),$where $x_t$ is the word embedding of the $t$th word.  We use the last hidden state vector $h_T$ as the encoded representation of the input instruction.  The action (add or delete) and target object (color and shape) are  directly predicted from the instruction encoding using linear units:
+We use a LSTM network to encode input instruction $$h_t = \text{LSTM}(h_{t-1}, x_t; W_1),$$ where $x_t$ is the word embedding of the $t$th word.  We use the last hidden state vector $h_T$ as the encoded representation of the input instruction.  The action (add or delete) and target object (color and shape) are  directly predicted from the instruction encoding using linear units:
 
 - Action: $P(a|h_T) = \text{softmax}(W_a h_T + b_a)$
 - Color: $P(c|h_T) = \text{softmax}(W_c h_T + b_c)$
