@@ -25,7 +25,7 @@ The instructor model is trained to generate instructions of two action types: Ad
 
 The instructor model is a recurrent neural network language model. The design is largely based on the "top-down image captioning model" proposed in the paper [Bottom-Up and Top-Down Attention for Image Captioning and Viusal Question Answering](https://arxiv.org/pdf/1707.07998.pdf). Attention tensor $R^{5\times 5\times 4}$ is computed from the current scratch canvas and the goal canvas. The attention tensor has 4 channels: the first the color channel, the second the shape channel, the third a flag channel indicating whether an object is present in the current scratch canvas, and the last a flag channel indicating whether an object is present in the goal canvas. The attention tensor is flattened as 25 attention vectors of dimension 4 to be used in the model. Check the file `instructor_new.py` for details.
 
-![Top Down Image Captioning Model]( )
+![topdown model](https://s3.amazonaws.com/github-share/topdown.PNG "Top Down Image Captioning Model")
 
 ## The Painter Bot
 
@@ -45,7 +45,7 @@ The message has three instructions: the first an Add instruction with relative l
 
 The painter model takes a message and the canvas before the message as inputs, and predicts an updated canvas based on instructions in the message. Although the painter model is designed to process multiple instructions, internally it processes instructions one-by-one: at each step it takes an instruction and previously predicted canvas as input, and constructs an intermediate canvas; intermediate canvas and the next instruction are again input to the next step.  Figure \ref{painter_model} presents a schematic illustration of the painter model.
 
-![A schematic illustration of the painter model\label{painter_model}]( )
+![A schematic illustration of the painter model\label{painter_model}](https://s3.amazonaws.com/github-share/painter_model.PNG)
 
 #### Painter Model in One Step
 
@@ -68,11 +68,11 @@ The painter model take an message and the canvas before the message as input, an
 
 - Reward function for Add instructions
 
-![Reward function for add instructions]( )
+![Reward function for add instructions](https://s3.amazonaws.com/github-share/step_reward_model_add.PNG)
 
 - Reward function for Delete instructions
 
-![]( )
+![Reward function for delete instructions](https://s3.amazonaws.com/github-share/step_reward_model_delete.PNG)
 
 ### Dataset
 
